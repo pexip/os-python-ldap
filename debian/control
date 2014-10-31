@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Pexip AS <packaging@pexip.com>
 XSBC-Pexip-Original-Maintainer: Matej Vela <vela@debian.org>
 Standards-Version: 3.9.3
-Build-Depends: debhelper (>= 8), python-all-dev (>= 2.6.6-3~), python-all-dbg, libldap2-dev, libsasl2-dev
+Build-Depends: debhelper (>= 8), python-all-dev (>= 2.6.6-3~), python-all-dbg, libldap2-dev, libsasl2-dev, libssl-dev
 Homepage: http://www.python-ldap.org/
 X-Python-Version: >= 2.3
 XS-Pexip-Upstream: http://ftp.debian.org/debian/ jessie

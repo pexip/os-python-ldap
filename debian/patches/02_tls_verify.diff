@@ -1,0 +1,228 @@
+diff --git a/Lib/ldap/ldapobject.py b/Lib/ldap/ldapobject.py
+index c1e906d..da08aa9 100644
+--- a/Lib/ldap/ldapobject.py
++++ b/Lib/ldap/ldapobject.py
+@@ -606,6 +606,9 @@ class SimpleLDAPObject:
+       invalue = RequestControlTuples(invalue)
+     return self._ldap_call(self._l.set_option,option,invalue)
+ 
++  def register_tls_verify_cb(self,callback):
++    return self._ldap_call(self._l.register_tls_verify_cb,callback)
++
+   def search_subschemasubentry_s(self,dn=''):
+     """
+     Returns the distinguished name of the sub schema sub entry
+diff --git a/Modules/LDAPObject.c b/Modules/LDAPObject.c
+index 1b2326a..0c32cfe 100644
+--- a/Modules/LDAPObject.c
++++ b/Modules/LDAPObject.c
+@@ -18,7 +18,14 @@
+ #include <sasl.h>
+ #endif
+ 
++#ifdef HAVE_TLS
++#include <openssl/ssl.h>
++#endif
++
+ static void free_attrs(char***);
++#ifdef HAVE_TLS
++static int global_tls_connect_callback(struct ldap *, void *, void *, void *);
++#endif
+ 
+ /* constructor */
+ 
+@@ -31,6 +38,33 @@ newLDAPObject( LDAP* l )
+     self->ldap = l;
+     self->_save = NULL;
+     self->valid = 1;
++    self->tls_is_openssl = 0;
++    Py_INCREF(Py_None);
++    self->tls_cb = Py_None;
++    self->old_tls_cb = NULL;
++
++#ifdef HAVE_TLS
++    {
++        int res;
++#ifdef LDAP_OPT_X_TLS_PACKAGE
++        char *strval;
++
++        LDAP_BEGIN_ALLOW_THREADS(self);
++        res = ldap_get_option(l, LDAP_OPT_X_TLS_PACKAGE, &strval);
++        LDAP_END_ALLOW_THREADS(self);
++        if (res == LDAP_OPT_SUCCESS) {
++            self->tls_is_openssl = (strcmp(strval, "OpenSSL") == 0);
++            ldap_memfree(strval);
++        }
++#endif
++
++        LDAP_BEGIN_ALLOW_THREADS(self);
++        ldap_set_option(l, LDAP_OPT_X_TLS_CONNECT_CB, global_tls_connect_callback);
++        ldap_set_option(l, LDAP_OPT_X_TLS_CONNECT_ARG, self);
++        LDAP_END_ALLOW_THREADS(self);
++    }
++#endif
++
+     return self;
+ }
+ 
+@@ -39,6 +73,8 @@ newLDAPObject( LDAP* l )
+ static void
+ dealloc( LDAPObject* self )
+ {
++    Py_XDECREF(self->tls_cb);
++    self->tls_cb = NULL;
+     if (self->ldap) {
+         if (self->valid) {
+             LDAP_BEGIN_ALLOW_THREADS( self );
+@@ -1161,16 +1197,116 @@ l_ldap_start_tls_s( LDAPObject* self, PyObject* args )
+     if (!PyArg_ParseTuple( args, "" )) return NULL;
+     if (not_valid(self)) return NULL;
+ 
++    LDAP_BEGIN_ALLOW_THREADS(self);
+     result = ldap_start_tls_s( self->ldap, NULL, NULL );
++    LDAP_END_ALLOW_THREADS(self);
+     if ( result != LDAP_SUCCESS ){
+         ldap_set_option(self->ldap, LDAP_OPT_ERROR_NUMBER, &result);
+         return LDAPerror( self->ldap, "ldap_start_tls_s" );
+     }
+ 
+     Py_INCREF(Py_None);
+     return Py_None;
+ }
+ 
++static PyObject*
++l_ldap_register_tls_verify_cb( LDAPObject* self, PyObject* args)
++{
++    PyObject *callback;
++
++    if (!PyArg_ParseTuple( args, "O:register_tls_verify_cb", &callback))
++        return NULL;
++    if (not_valid(self))
++        return NULL;
++    if (!PyCallable_Check(callback)) {
++        PyErr_SetString(PyExc_TypeError, "expected PyCallable");
++        return NULL;
++    }
++    Py_DECREF(self->tls_cb);
++    Py_INCREF(callback);
++    self->tls_cb = callback;
++
++    Py_INCREF(Py_None);
++    return Py_None;
++}
++
++static int global_tls_openssl_verify_callback(int preverify_ok, X509_STORE_CTX *ctx)
++{
++    BIO *bio;
++    X509 *cert;
++    char *pem = NULL;
++    int errnum, errdepth;
++    PyObject *argv, *ret = NULL;
++    SSL *ssl = (SSL *) X509_STORE_CTX_get_app_data(ctx);
++    LDAPObject *self = (LDAPObject *) SSL_get_app_data(ssl);
++
++    if (self->old_tls_cb != NULL) {
++        preverify_ok = ((int(*)(int, X509_STORE_CTX*)) self->old_tls_cb)(preverify_ok, ctx);
++    }
++
++    /* Take the GIL */
++    LDAP_END_ALLOW_THREADS(self);
++
++    if (PyNone_Check(self->tls_cb)) {
++        goto out;
++    }
++
++    /* convert current cert to a PEM string */
++    errnum = X509_STORE_CTX_get_error(ctx);
++    errdepth = X509_STORE_CTX_get_error_depth(ctx);
++    cert = X509_STORE_CTX_get_current_cert(ctx);
++    if (cert != NULL) {
++        bio = BIO_new(BIO_s_mem());
++        if (bio != NULL) {
++            if (PEM_write_bio_X509(bio, cert) > 0) {
++                int len = BIO_pending(bio);
++                pem = malloc(len + 1);
++                if (pem != NULL) {
++                    len = BIO_read(bio, pem, len);
++                    pem[len] = '\0';
++                }
++            }
++            BIO_free(bio);
++        }
++    }
++
++    argv = Py_BuildValue("(isii)", preverify_ok, pem != NULL ? pem : "", errnum, errdepth);
++    free(pem);
++
++    ret = PyEval_CallObject(self->tls_cb, argv);
++    Py_DECREF(argv);
++    if (ret != NULL) {
++        if (PyObject_IsTrue(ret)) {
++            X509_STORE_CTX_set_error(ctx, X509_V_OK);
++            preverify_ok = 1;
++        } else {
++            preverify_ok = 0;
++        }
++        Py_DECREF(ret);
++    } else {
++        preverify_ok = 0;
++    }
++
++out:
++    /* Release the GIL */
++    LDAP_BEGIN_ALLOW_THREADS(self);
++
++    return preverify_ok;
++}
++
++static int global_tls_connect_callback(struct ldap *ld, void *ssl, void *ctx, void *arg)
++{
++    LDAPObject *self = (LDAPObject *) arg;
++    if (self->tls_is_openssl) {
++        SSL *ossl = (SSL *) ssl;
++        self->old_tls_cb = (void(*)(void)) SSL_get_verify_callback(ossl);
++        SSL_set_verify(ossl, SSL_get_verify_mode(ossl), global_tls_openssl_verify_callback);
++        SSL_set_app_data(ossl, self);
++    }
++
++    return 0;
++}
++
+ #endif
+ 
+ /* ldap_set_option */
+@@ -1326,6 +1462,7 @@ static PyMethodDef methods[] = {
+     {"search_ext",      (PyCFunction)l_ldap_search_ext,         METH_VARARGS },
+ #ifdef HAVE_TLS
+     {"start_tls_s",     (PyCFunction)l_ldap_start_tls_s,        METH_VARARGS },
++    {"register_tls_verify_cb", (PyCFunction)l_ldap_register_tls_verify_cb, METH_VARARGS },
+ #endif
+     {"whoami_s",        (PyCFunction)l_ldap_whoami_s,           METH_VARARGS },
+     {"passwd",          (PyCFunction)l_ldap_passwd,             METH_VARARGS },
+diff --git a/Modules/LDAPObject.h b/Modules/LDAPObject.h
+index b0ffbbe..bfaeed7 100644
+--- a/Modules/LDAPObject.h
++++ b/Modules/LDAPObject.h
+@@ -23,6 +23,9 @@ typedef struct {
+ 	LDAP* ldap;
+ 	_threadstate	_save; /* for thread saving on referrals */
+ 	int valid;
++        int tls_is_openssl;
++        PyObject *tls_cb;
++        void (*old_tls_cb)(void);
+ } LDAPObject;
+ 
+ extern PyTypeObject LDAP_Type;
+diff --git a/setup.cfg b/setup.cfg
+index f1b1c48..2a156c5 100644
+--- a/setup.cfg
++++ b/setup.cfg
+@@ -4,7 +4,7 @@
+ defines = HAVE_SASL HAVE_TLS HAVE_LIBLDAP_R
+ extra_compile_args = 
+ extra_objects = 
+-libs = ldap_r
++libs = ldap_r ssl crypto
+ 
+ [install]
+ compile = 1
