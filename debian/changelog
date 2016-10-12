@@ -1,3 +1,9 @@
+python-ldap (2.4.10-1pexip3) pexip; urgency=low
+
+  * Rebuild against libssl1.0.2
+
+ -- John-Mark Bell <jmb@pexip.com>  Wed, 12 Oct 2016 05:21:48 +0100
+
 python-ldap (2.4.10-1pexip2) pexip; urgency=low
 
   * Expose TLS certificate verification to Python.
