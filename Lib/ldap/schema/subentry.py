@@ -3,7 +3,7 @@ ldap.schema.subentry -  subschema subentry handling
 
 See http://www.python-ldap.org/ for details.
 
-\$Id: subentry.py,v 1.33 2012/02/19 13:49:30 stroeder Exp $
+\$Id: subentry.py,v 1.36 2015/08/08 14:13:30 stroeder Exp $
 """
 
 import ldap.cidict,ldap.schema
@@ -75,7 +75,7 @@ class SubSchema:
   non_unique_oids
     List of OIDs used at least twice in the subschema
   non_unique_names
-    List of NAMEs used at least twice in the subschema for the same schema element 
+    List of NAMEs used at least twice in the subschema for the same schema element
   """
 
   def __init__(self,sub_schema_sub_entry,check_uniqueness=1):
@@ -464,13 +464,13 @@ def urlfetch(uri,trace_level=0):
     l.simple_bind_s(ldap_url.who or '', ldap_url.cred or '')
     subschemasubentry_dn = l.search_subschemasubentry_s(ldap_url.dn)
     if subschemasubentry_dn is None:
-      subschemasubentry_entry = None
+      s_temp = None
     else:
       if ldap_url.attrs is None:
         schema_attrs = SCHEMA_ATTRS
       else:
         schema_attrs = ldap_url.attrs
-      subschemasubentry_entry = l.read_subschemasubentry_s(
+      s_temp = l.read_subschemasubentry_s(
         subschemasubentry_dn,attrs=schema_attrs
       )
     l.unbind_s()
@@ -480,7 +480,17 @@ def urlfetch(uri,trace_level=0):
     ldif_file = urllib.urlopen(uri)
     ldif_parser = ldif.LDIFRecordList(ldif_file,max_entries=1)
     ldif_parser.parse()
-    subschemasubentry_dn,subschemasubentry_entry = ldif_parser.all_records[0]
+    subschemasubentry_dn,s_temp = ldif_parser.all_records[0]
+  # Work-around for mixed-cased attribute names
+  subschemasubentry_entry = ldap.cidict.cidict()
+  s_temp = s_temp or {}
+  for at,av in s_temp.items():
+    if at in SCHEMA_CLASS_MAPPING:
+      try:
+        subschemasubentry_entry[at].extend(av)
+      except KeyError:
+        subschemasubentry_entry[at] = av
+  # Finally parse the schema
   if subschemasubentry_dn!=None:
     parsed_sub_schema = ldap.schema.SubSchema(subschemasubentry_entry)
   else:

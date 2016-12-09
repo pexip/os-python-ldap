@@ -3,8 +3,9 @@ Section: python
 Priority: optional
 Maintainer: Matej Vela <vela@debian.org>
 Standards-Version: 3.9.3
-Build-Depends: debhelper (>= 8), python-all-dev (>= 2.6.6-3~), python-all-dbg, libldap2-dev, libsasl2-dev
-Homepage: http://www.python-ldap.org/
+Build-Depends: debhelper (>= 10), python-all-dev (>= 2.6.6-3~), python-all-dbg,
+ libldap2-dev, libsasl2-dev, dh-python
+Homepage: https://www.python-ldap.org/
 X-Python-Version: >= 2.3
 
 Package: python-ldap

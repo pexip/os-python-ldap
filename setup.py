@@ -3,7 +3,7 @@ setup.py - Setup package with the help Python's DistUtils
 
 See http://www.python-ldap.org/ for details.
 
-$Id: setup.py,v 1.71 2011/10/26 19:42:25 stroeder Exp $
+$Id: setup.py,v 1.76 2016/08/13 09:44:08 stroeder Exp $
 """
 
 has_setuptools = False
@@ -91,8 +91,8 @@ setup(
   """,
   author = 'python-ldap project',
   author_email = 'python-ldap@python.org',
-  url = 'http://www.python-ldap.org/',
-  download_url = 'http://pypi.python.org/pypi/python-ldap/',
+  url = 'https://www.python-ldap.org/',
+  download_url = 'https://pypi.python.org/pypi/python-ldap/',
   classifiers = [
     'Development Status :: 5 - Production/Stable',
     'Intended Audience :: Developers',
@@ -103,6 +103,7 @@ setup(
     'Operating System :: POSIX',
     'Programming Language :: C',
     'Programming Language :: Python',
+    'Programming Language :: Python :: 2',
     'Topic :: Database',
     'Topic :: Internet',
     'Topic :: Software Development :: Libraries :: Python Modules',
@@ -150,12 +151,16 @@ setup(
     'ldap',
     'ldap.async',
     'ldap.controls',
+    'ldap.controls.deref',
     'ldap.controls.libldap',
+    'ldap.controls.openldap',
     'ldap.controls.ppolicy',
     'ldap.controls.psearch',
+    'ldap.controls.pwdpolicy',
     'ldap.controls.readentry',
     'ldap.controls.sessiontrack',
     'ldap.controls.simple',
+    'ldap.controls.sss',
     'ldap.cidict',
     'ldap.dn',
     'ldap.extop',

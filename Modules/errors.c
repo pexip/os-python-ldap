@@ -2,7 +2,7 @@
  * errors that arise from ldap use
  * Most errors become their own exception
  * See http://www.python-ldap.org/ for details.
- * $Id: errors.c,v 1.23 2012/01/11 10:04:48 stroeder Exp $ */
+ * $Id: errors.c,v 1.25 2015/06/23 09:45:09 stroeder Exp $ */
 
 #include "common.h"
 #include "errors.h"
@@ -145,6 +145,7 @@ LDAPinit_errors( PyObject*d ) {
   seterrobj(ALIAS_DEREF_PROBLEM);
   seterrobj(ALIAS_PROBLEM);
   seterrobj(ALREADY_EXISTS);
+  seterrobj(AUTH_METHOD_NOT_SUPPORTED);
   seterrobj(AUTH_UNKNOWN);
   seterrobj(BUSY);
   seterrobj(CLIENT_LOOP);
@@ -168,15 +169,15 @@ LDAPinit_errors( PyObject*d ) {
   seterrobj(LOOP_DETECT);
   seterrobj(MORE_RESULTS_TO_RETURN);
   seterrobj(NAMING_VIOLATION);
-  seterrobj(NO_OBJECT_CLASS_MODS);
-  seterrobj(NOT_ALLOWED_ON_NONLEAF);
-  seterrobj(NOT_ALLOWED_ON_RDN);
-  seterrobj(NOT_SUPPORTED);
   seterrobj(NO_MEMORY);
+  seterrobj(NO_OBJECT_CLASS_MODS);
   seterrobj(NO_OBJECT_CLASS_MODS);
   seterrobj(NO_RESULTS_RETURNED);
   seterrobj(NO_SUCH_ATTRIBUTE);
   seterrobj(NO_SUCH_OBJECT);
+  seterrobj(NOT_ALLOWED_ON_NONLEAF);
+  seterrobj(NOT_ALLOWED_ON_RDN);
+  seterrobj(NOT_SUPPORTED);
   seterrobj(OBJECT_CLASS_VIOLATION);
   seterrobj(OPERATIONS_ERROR);
   seterrobj(OTHER);
@@ -200,6 +201,8 @@ LDAPinit_errors( PyObject*d ) {
   seterrobj(UNDEFINED_TYPE);
   seterrobj(UNWILLING_TO_PERFORM);
   seterrobj(USER_CANCELLED);
+  seterrobj(VLV_ERROR);
+  seterrobj(X_PROXY_AUTHZ_FAILURE);
 
 #ifdef LDAP_API_FEATURE_CANCEL
   seterrobj(CANCELLED);

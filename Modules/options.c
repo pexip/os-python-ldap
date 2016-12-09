@@ -1,5 +1,5 @@
 /* See http://www.python-ldap.org/ for details.
- * $Id: options.c,v 1.39 2011/06/10 21:55:45 stroeder Exp $ */
+ * $Id: options.c,v 1.42 2014/09/12 12:02:21 stroeder Exp $ */
 
 #include "common.h"
 #include "errors.h"
@@ -236,6 +236,7 @@ LDAP_get_option(LDAPObject *self, int option)
     case LDAP_OPT_PROTOCOL_VERSION:
     case LDAP_OPT_ERROR_NUMBER:
     case LDAP_OPT_DEBUG_LEVEL:
+    case LDAP_OPT_DESC:
 #ifdef HAVE_TLS
     case LDAP_OPT_X_TLS:
     case LDAP_OPT_X_TLS_REQUIRE_CERT:
@@ -290,6 +291,12 @@ LDAP_get_option(LDAPObject *self, int option)
     case LDAP_OPT_X_TLS_DHFILE:
 #ifdef LDAP_OPT_X_TLS_CRLFILE
     case LDAP_OPT_X_TLS_CRLFILE:
+#endif
+#ifdef LDAP_OPT_X_TLS_VERSION
+    case LDAP_OPT_X_TLS_VERSION:
+#endif
+#ifdef LDAP_OPT_X_TLS_CIPHER
+    case LDAP_OPT_X_TLS_CIPHER:
 #endif
 #ifdef LDAP_OPT_X_TLS_PACKAGE
     case LDAP_OPT_X_TLS_PACKAGE:

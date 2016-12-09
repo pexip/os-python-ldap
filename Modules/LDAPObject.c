@@ -1,5 +1,5 @@
 /* See http://www.python-ldap.org/ for details.
- * $Id: LDAPObject.c,v 1.90 2011/04/11 11:29:59 stroeder Exp $ */
+ * $Id: LDAPObject.c,v 1.94 2016/01/26 11:01:08 stroeder Exp $ */
 
 #include "common.h"
 #include "patchlevel.h"
@@ -18,7 +18,7 @@
 #include <sasl.h>
 #endif
 
-static void free_attrs(char***);
+static void free_attrs(char***, PyObject*);
 
 /* constructor */
 
@@ -252,15 +252,16 @@ error:
 /*
  * convert a python list of strings into an attr list (char*[]).
  * returns 1 if successful, 0 if not (with exception set)
- * XXX the strings should live longer than the resulting attrs pointer.
  */
 
 int
-attrs_from_List( PyObject *attrlist, char***attrsp ) {
+attrs_from_List( PyObject *attrlist, char***attrsp, PyObject** seq) {
 
     char **attrs = NULL;
     Py_ssize_t i, len;
     PyObject *item;
+
+    *seq = NULL;
 
     if (attrlist == Py_None) {
         /* None means a NULL attrlist */
@@ -269,31 +270,30 @@ attrs_from_List( PyObject *attrlist, char***attrsp ) {
         PyErr_SetObject( PyExc_TypeError, Py_BuildValue("sO",
                   "expected *list* of strings, not a string", attrlist ));
         goto error;
-    } else if (PySequence_Check(attrlist)) {
+    } else {
+        *seq = PySequence_Fast(attrlist, "expected list of strings or None");
+        if (*seq == NULL)
+            goto error;
+
         len = PySequence_Length(attrlist);
+
         attrs = PyMem_NEW(char *, len + 1);
         if (attrs == NULL)
-            goto nomem;
+                goto nomem;
 
         for (i = 0; i < len; i++) {
             attrs[i] = NULL;
-            item = PySequence_GetItem(attrlist, i);
+            item = PySequence_Fast_GET_ITEM(*seq, i);
             if (item == NULL)
                 goto error;
             if (!PyString_Check(item)) {
                 PyErr_SetObject(PyExc_TypeError, Py_BuildValue("sO",
                                 "expected string in list", item));
-                Py_DECREF(item);
                 goto error;
             }
             attrs[i] = PyString_AsString(item);
-            Py_DECREF(item);
         }
         attrs[len] = NULL;
-    } else {
-        PyErr_SetObject( PyExc_TypeError, Py_BuildValue("sO",
-                         "expected list of strings or None", attrlist ));
-        goto error;
     }
 
     *attrsp = attrs;
@@ -302,20 +302,22 @@ attrs_from_List( PyObject *attrlist, char***attrsp ) {
 nomem:
     PyErr_NoMemory();
 error:
-    free_attrs(&attrs);
+    free_attrs(&attrs, *seq);
     return 0;
 }
 
 /* free memory allocated from above routine */
 
 static void
-free_attrs( char*** attrsp ) {
+free_attrs( char*** attrsp, PyObject* seq ) {
     char **attrs = *attrsp;
 
     if (attrs != NULL) {
         PyMem_DEL(attrs);
         *attrsp = NULL;
     }
+
+    Py_XDECREF(seq);
 }
 
 /*------------------------------------------------------------
@@ -614,6 +616,59 @@ int py_ldap_sasl_interaction(   LDAP *ld,
     interact++;
   }
   return LDAP_SUCCESS;
+}
+
+static PyObject*
+l_ldap_sasl_bind_s( LDAPObject* self, PyObject* args )
+{
+    const char *dn;
+    const char *mechanism;
+    struct berval cred;
+    Py_ssize_t cred_len;
+
+    PyObject *serverctrls = Py_None;
+    PyObject *clientctrls = Py_None;
+    LDAPControl** server_ldcs = NULL;
+    LDAPControl** client_ldcs = NULL;
+
+    struct berval *servercred;
+    int ldaperror;
+
+    if (!PyArg_ParseTuple(args, "zzz#OO", &dn, &mechanism, &cred.bv_val, &cred_len, &serverctrls, &clientctrls ))
+        return NULL;
+
+    if (not_valid(self)) return NULL;
+
+    cred.bv_len = cred_len;
+
+    if (!PyNone_Check(serverctrls)) {
+        if (!LDAPControls_from_object(serverctrls, &server_ldcs))
+            return NULL;
+    }
+    if (!PyNone_Check(clientctrls)) {
+        if (!LDAPControls_from_object(clientctrls, &client_ldcs))
+            return NULL;
+    }
+
+    LDAP_BEGIN_ALLOW_THREADS( self );
+    ldaperror = ldap_sasl_bind_s(self->ldap,
+                                 dn,
+                                 mechanism,
+                                 cred.bv_val ? &cred : NULL,
+                                 (LDAPControl**) server_ldcs, 
+                                 (LDAPControl**) client_ldcs,
+                                 &servercred);
+    LDAP_END_ALLOW_THREADS( self );
+
+    LDAPControl_List_DEL( server_ldcs );
+    LDAPControl_List_DEL( client_ldcs );
+
+    if (ldaperror == LDAP_SASL_BIND_IN_PROGRESS) {
+        if (servercred && servercred->bv_val && *servercred->bv_val)
+            return PyString_FromStringAndSize( servercred->bv_val, servercred->bv_len );
+    } else if (ldaperror != LDAP_SUCCESS)
+        return LDAPerror( self->ldap, "l_ldap_sasl_bind_s" );
+    return PyInt_FromLong( ldaperror );
 }
 
 static PyObject* 
@@ -1054,6 +1109,7 @@ l_ldap_search_ext( LDAPObject* self, PyObject* args )
 
     PyObject *serverctrls = Py_None;
     PyObject *clientctrls = Py_None;
+    PyObject *attrs_seq = NULL;
     LDAPControl** server_ldcs = NULL;
     LDAPControl** client_ldcs = NULL;
 
@@ -1071,7 +1127,7 @@ l_ldap_search_ext( LDAPObject* self, PyObject* args )
                            &serverctrls, &clientctrls, &timeout, &sizelimit )) return NULL;
     if (not_valid(self)) return NULL;
 
-    if (!attrs_from_List( attrlist, &attrs )) 
+    if (!attrs_from_List( attrlist, &attrs, &attrs_seq ))
          return NULL;
 
     if (timeout >= 0) {
@@ -1096,7 +1152,7 @@ l_ldap_search_ext( LDAPObject* self, PyObject* args )
                              server_ldcs, client_ldcs, tvp, sizelimit, &msgid );
     LDAP_END_ALLOW_THREADS( self );
 
-    free_attrs( &attrs );
+    free_attrs( &attrs,  attrs_seq);
     LDAPControl_List_DEL( server_ldcs );
     LDAPControl_List_DEL( client_ldcs );
 
@@ -1124,6 +1180,7 @@ l_ldap_whoami_s( LDAPObject* self, PyObject* args )
     int ldaperror;
 
     if (!PyArg_ParseTuple( args, "|OO", &serverctrls, &clientctrls)) return NULL;
+    if (not_valid(self)) return NULL;
 
     if (!PyNone_Check(serverctrls)) {
         if (!LDAPControls_from_object(serverctrls, &server_ldcs))
@@ -1317,6 +1374,7 @@ static PyMethodDef methods[] = {
     {"simple_bind",     (PyCFunction)l_ldap_simple_bind,        METH_VARARGS },
 #ifdef HAVE_SASL
     {"sasl_interactive_bind_s", (PyCFunction)l_ldap_sasl_interactive_bind_s,    METH_VARARGS },
+    {"sasl_bind_s", (PyCFunction)l_ldap_sasl_bind_s,    METH_VARARGS },
 #endif
     {"compare_ext",     (PyCFunction)l_ldap_compare_ext,        METH_VARARGS },
     {"delete_ext",      (PyCFunction)l_ldap_delete_ext,         METH_VARARGS },
