@@ -3,7 +3,7 @@ functions.py - wraps functions of module _ldap
 
 See http://www.python-ldap.org/ for details.
 
-\$Id: functions.py,v 1.28 2011/11/23 17:27:46 stroeder Exp $
+\$Id: functions.py,v 1.33 2016/07/25 08:15:14 stroeder Exp $
 
 Compability:
 - Tested with Python 2.0+ but should work with Python 1.5.x
@@ -24,9 +24,12 @@ __all__ = [
   'open','initialize','init',
   'explode_dn','explode_rdn',
   'get_option','set_option',
+  'escape_str',
+  'strf_secs','strp_secs',
 ]
 
-import sys,pprint,_ldap,ldap
+import sys,pprint,time,_ldap,ldap
+from calendar import timegm
 
 from ldap import LDAPError
 
@@ -130,3 +133,26 @@ def set_option(option,invalue):
   Set the value of an LDAP global option.
   """
   return _ldap_function_call(None,_ldap.set_option,option,invalue)
+
+
+def escape_str(escape_func,s,*args):
+  """
+  Applies escape_func() to all items of `args' and returns a string based
+  on format string `s'.
+  """
+  escape_args = map(escape_func,args)
+  return s % tuple(escape_args)
+
+
+def strf_secs(secs):
+    """
+    Convert seconds since epoch to a string compliant to LDAP syntax GeneralizedTime
+    """
+    return time.strftime('%Y%m%d%H%M%SZ', time.gmtime(secs))
+
+
+def strp_secs(dt_str):
+    """
+    Convert LDAP syntax GeneralizedTime to seconds since epoch
+    """
+    return timegm(time.strptime(dt_str, '%Y%m%d%H%M%SZ'))

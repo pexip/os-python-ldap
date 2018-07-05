@@ -5,11 +5,12 @@ ldap.controls.pwdpolicy - classes for Password Policy controls
 
 See http://www.python-ldap.org/ for project details.
 
-$Id: pwdpolicy.py,v 1.1 2012/02/21 16:51:55 stroeder Exp $
+$Id: pwdpolicy.py,v 1.5 2015/10/24 15:55:07 stroeder Exp $
 """
 
 __all__ = [
-  'ExpirationWarningControl'
+  'PasswordExpiringControl',
+  'PasswordExpiredControl',
 ]
 
 # Imports from python-ldap 2.4+
@@ -17,14 +18,14 @@ import ldap.controls
 from ldap.controls import RequestControl,ResponseControl,ValueLessRequestControl,KNOWN_RESPONSE_CONTROLS
 
 
-class PasswordExpiringControl(OctetStringInteger):
+class PasswordExpiringControl(ResponseControl):
   """
   Indicates time in seconds when password will expire
   """
   controlType = '2.16.840.1.113730.3.4.5'
 
   def decodeControlValue(self,encodedControlValue):
-    self.gracePeriod = struct.unpack('!Q',encodedControlValue)[0]
+    self.gracePeriod = int(encodedControlValue)
 
 KNOWN_RESPONSE_CONTROLS[PasswordExpiringControl.controlType] = PasswordExpiringControl
 

@@ -3,7 +3,7 @@ schema.py - support for subSchemaSubEntry information
 
 See http://www.python-ldap.org/ for details.
 
-\$Id: models.py,v 1.45 2012/03/07 19:07:15 stroeder Exp $
+\$Id: models.py,v 1.48 2015/06/06 09:21:38 stroeder Exp $
 """
 
 import UserDict,ldap.cidict
@@ -36,7 +36,7 @@ class SchemaElement:
   Base class for all schema element classes. Not used directly!
 
   Arguments:
-  
+
   schema_element_str
     String which contains the schema element description to be parsed.
 
@@ -51,7 +51,7 @@ class SchemaElement:
   token_defaults = {
     'DESC':(None,),
   }
-  
+
   def __init__(self,schema_element_str=None):
     if schema_element_str:
       l = split_tokens(schema_element_str,self.token_defaults)
@@ -72,7 +72,7 @@ class SchemaElement:
   def key_attr(self,key,value,quoted=0):
     assert value is None or type(value)==StringType,TypeError("value has to be of StringType, was %s" % repr(value))
     if value:
-      if quoted:        
+      if quoted:
         return " %s '%s'" % (key,value.replace("'","\\'"))
       else:
         return " %s %s" % (key,value)
@@ -101,7 +101,7 @@ class SchemaElement:
 class ObjectClass(SchemaElement):
   """
   Arguments:
-  
+
   schema_element_str
     String containing an ObjectClassDescription
 
@@ -124,8 +124,8 @@ class ObjectClass(SchemaElement):
     an entry of the object class may have
   kind
     Kind of an object class:
-    0 = ABSTRACT,
-    1 = STRUCTURAL,
+    0 = STRUCTURAL,
+    1 = ABSTRACT,
     2 = AUXILIARY
   sup
     This list of strings contains NAMEs or OIDs of object classes
@@ -194,7 +194,7 @@ AttributeUsage = ldap.cidict.cidict({
 class AttributeType(SchemaElement):
   """
   Arguments:
-  
+
   schema_element_str
     String containing an AttributeTypeDescription
 
@@ -249,7 +249,9 @@ class AttributeType(SchemaElement):
     'SINGLE-VALUE':None,
     'COLLECTIVE':None,
     'NO-USER-MODIFICATION':None,
-    'USAGE':('userApplications',)
+    'USAGE':('userApplications',),
+    'X-ORIGIN':(None,),
+    'X-ORDERED':(None,),
   }
 
   def _set_attrs(self,l,d):
@@ -260,6 +262,8 @@ class AttributeType(SchemaElement):
     self.equality = d['EQUALITY'][0]
     self.ordering = d['ORDERING'][0]
     self.substr = d['SUBSTR'][0]
+    self.x_origin = d['X-ORIGIN'][0]
+    self.x_ordered = d['X-ORDERED'][0]
     try:
       syntax = d['SYNTAX'][0]
     except IndexError:
@@ -317,6 +321,8 @@ class AttributeType(SchemaElement):
         3:" USAGE dSAOperation",
       }[self.usage]
     )
+    result.append(self.key_attr('X-ORIGIN',self.x_origin,quoted=1))
+    result.append(self.key_attr('X-ORDERED',self.x_ordered,quoted=1))
     return '( %s )' % ''.join(result)
 
 
@@ -330,25 +336,30 @@ class LDAPSyntax(SchemaElement):
     This string contains description text (DESC) of the LDAP syntax
   not_human_readable
     Integer flag (0 or 1) indicating whether the attribute type is marked
-    as not human-readable (X-NOT-HUMAN-READABLE)  
+    as not human-readable (X-NOT-HUMAN-READABLE)
   """
   schema_attribute = 'ldapSyntaxes'
   token_defaults = {
     'DESC':(None,),
     'X-NOT-HUMAN-READABLE':(None,),
+    'X-BINARY-TRANSFER-REQUIRED':(None,),
+    'X-SUBST':(None,),
   }
 
   def _set_attrs(self,l,d):
     self.desc = d['DESC'][0]
+    self.x_subst = d['X-SUBST'][0]
     self.not_human_readable = \
       NOT_HUMAN_READABLE_LDAP_SYNTAXES.has_key(self.oid) or \
       d['X-NOT-HUMAN-READABLE'][0]=='TRUE'
+    self.x_binary_transfer_required = d['X-BINARY-TRANSFER-REQUIRED'][0]=='TRUE'
     assert self.desc is None or type(self.desc)==StringType
     return
-                                  
+
   def __str__(self):
     result = [str(self.oid)]
     result.append(self.key_attr('DESC',self.desc,quoted=1))
+    result.append(self.key_attr('X-SUBST',self.x_subst,quoted=1))
     result.append(
       {0:'',1:" X-NOT-HUMAN-READABLE 'TRUE'"}[self.not_human_readable]
     )
@@ -358,7 +369,7 @@ class LDAPSyntax(SchemaElement):
 class MatchingRule(SchemaElement):
   """
   Arguments:
-  
+
   schema_element_str
     String containing an MatchingRuleDescription
 
@@ -407,7 +418,7 @@ class MatchingRule(SchemaElement):
 class MatchingRuleUse(SchemaElement):
   """
   Arguments:
-  
+
   schema_element_str
     String containing an MatchingRuleUseDescription
 
@@ -457,7 +468,7 @@ class MatchingRuleUse(SchemaElement):
 class DITContentRule(SchemaElement):
   """
   Arguments:
-  
+
   schema_element_str
     String containing an DITContentRuleDescription
 
@@ -530,7 +541,7 @@ class DITContentRule(SchemaElement):
 class DITStructureRule(SchemaElement):
   """
   Arguments:
-  
+
   schema_element_str
     String containing an DITStructureRuleDescription
 
@@ -593,7 +604,7 @@ class DITStructureRule(SchemaElement):
 class NameForm(SchemaElement):
   """
   Arguments:
-  
+
   schema_element_str
     String containing an NameFormDescription
 
@@ -659,7 +670,7 @@ class NameForm(SchemaElement):
 class Entry(UserDict.UserDict):
   """
   Schema-aware implementation of an LDAP entry class.
-  
+
   Mainly it holds the attributes in a string-keyed dictionary with
   the OID as key.
   """
