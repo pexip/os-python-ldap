@@ -24,7 +24,7 @@ index 1b2326a..0c32cfe 100644
 +#include <openssl/ssl.h>
 +#endif
 +
- static void free_attrs(char***);
+ static void free_attrs(char***, PyObject*);
 +#ifdef HAVE_TLS
 +static int global_tls_connect_callback(struct ldap *, void *, void *, void *);
 +#endif
