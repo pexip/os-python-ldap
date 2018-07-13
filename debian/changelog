@@ -1,6 +1,7 @@
 python-ldap (2.4.28-0.1pexip1) pexip; urgency=medium
 
   * Migrate to Stretch
+  * Build-Depend on libssl 1.0.x
 
  -- John-Mark Bell <jmb@pexip.com>  Fri, 13 Jul 2018 14:26:45 +0100
 
