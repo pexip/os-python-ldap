@@ -1,4 +1,282 @@
 ----------------------------------------------------------------
+Released 2.4.28 2016-11-17
+
+Changes since 2.4.27:
+
+Lib/
+* LDAPObject.unbind_ext_s() invokes LDAPObject._trace_file.flush()
+  only if LDAPObject._trace_level is non-zero and Python is running
+  in debug mode
+* LDAPObject.unbind_ext_s() now ignores AttributeError
+  in case LDAPObject._trace_file has no flush() method
+* added dummy method ldap.logger.logging_file_class.flush() because
+  LDAPObject.unbind_ext_s() invokes it
+
+----------------------------------------------------------------
+Released 2.4.27 2016-08-01
+
+Changes since 2.4.26:
+
+Lib/
+* added 'strf_secs' and 'strp_secs' to ldap.functions.__all__
+* fixed regression introduced with 2.4.26:
+  ldif.LDIFParser did not fully parse LDIF records without trailing empty
+  separator line
+
+----------------------------------------------------------------
+Released 2.4.26 2016-07-24
+
+Changes since 2.4.25:
+
+Installation:
+* added ldap.controls.sss to py_modules in setup.py
+
+Lib/
+* LDAPObject.unbind_ext() now removes class attribute
+  LDAPObject._l to completely invalidate C wrapper object
+* LDAPObject.unbind_ext() now flushes trace file
+* ldap.ldapobject.SimpleLDAPObject:
+  added convenience methods read_rootdse_s() and get_naming_contexts()
+* added functions ldap.strf_secs() and ldap.strp_secs()
+* added function ldap.filter.time_span_filter()
+* Refactored ldif.LDIFParser
+  * ldif.LDIFParser.version ís now Integer
+  * ignore multiple empty lines between records
+* Fixed ldap.dn.is_dn()
+
+Modules/
+* Fixed #69 Segmentation fault on whoami_s after unbind
+  (thanks to Christian Heimes and Petr Viktorin)
+
+Tests/
+* Fixed result3() being used instead of correct result4()
+  (see #66, thanks to David D. Riddle)
+* Tests/slapd.py honors env var $TMP instead of just using
+  hard-coded /var/tmp
+* Tests/slapd.py now expects schema to be in /etc/openldap/
+* Tests/t_ldapurl.py now independent of module ldap
+* Tests/t_ldif.py now has more test-cases including change records
+* added some more test scripts for sub-modules ldap.dn, ldap.filter and
+  ldap.functions (not complete yet)
+
+----------------------------------------------------------------
+Released 2.4.25 2016-01-18
+
+Changes since 2.4.23:
+(2.4.24 is missing because of foolish pypi version madness)
+
+Lib/
+* Fix for attrlist=None regression introduced in 2.4.23
+  by ref count patch
+
+----------------------------------------------------------------
+Released 2.4.23 2016-01-17
+
+Changes since 2.4.22:
+
+Modules/
+* Ref count issue in attrs_from_List() was fixed
+  (thanks to Elmir Jagudin)
+
+----------------------------------------------------------------
+Released 2.4.22 2015-10-25
+
+Changes since 2.4.21:
+
+Lib/
+* LDIFParser now also accepts value-spec without a space
+  after the colon.
+* Added key-word argument authz_id to LDAPObject methods
+  sasl_non_interactive_bind_s(), sasl_external_bind_s() and
+  sasl_gssapi_bind_s()
+* Hmmpf! Added missing self to LDAPObject.fileno().
+* ReconnectLDAPObject.sasl_bind_s() now correctly uses
+  generic wrapper arguments *args,**kwargs
+* Correct method name LDIFParser.handle_modify()
+* Corrected __all__ in modules ldap.controls.pwdpolicy and
+  ldap.controls.openldap
+
+Doc/
+* Started missing docs for sub-module ldap.sasl.
+
+----------------------------------------------------------------
+Released 2.4.21 2015-09-25
+
+Changes since 2.4.20:
+
+Lib/
+* LDAPObject.read_s() now returns None instead of raising
+  ldap.NO_SUCH_OBJECT in case the search operation returned emtpy result.
+* ldap.resiter.ResultProcessor.allresults() now takes new key-word
+  argument add_ctrls which is internally passed to LDAPObject.result4()
+  and lets the method also return response control along with the search
+  results.
+* Added ldap.controls.deref implementing support for dereference control
+
+Tests/
+* Unit tests for module ldif (thanks to Petr Viktorin)
+
+----------------------------------------------------------------
+Released 2.4.20 2015-07-07
+
+Changes since 2.4.19:
+
+* New wrapping of OpenLDAP's function ldap_sasl_bind_s() allows
+  to intercept the SASL handshake (thanks to René Kijewski)
+
+Modules/
+* Added exceptions ldap.VLV_ERROR, ldap.X_PROXY_AUTHZ_FAILURE and
+  ldap.AUTH_METHOD_NOT_SUPPORTED
+
+Lib/
+* Abandoned old syntax when raising ValueError in modules ldif and
+  ldapurl, more information in some exceptions.
+* ldap.ldapobject.LDAPObject:
+  New convenience methods for SASL GSSAPI or EXTERNAL binds
+* Refactored parts in ldif.LDIFParser:
+  - New class attributes line_counter and byte_counter contain
+    amount of LDIF data read so far
+  - Renamed some internally used methods
+  - Added support for parsing change records currently limited to
+    changetype: modify
+  - New separate methods parse_entry_records() (also called by parse())
+    and parse_change_records()
+  - Stricter order checking of dn:, changetype:, etc.
+  - Removed non-existent 'AttrTypeandValueLDIF' from ldif.__all__
+* New mix-in class ldap.controls.openldap.SearchNoOpMixIn
+  adds convience method noop_search_st() to LDAPObject class
+* Added new modules which implement the control classes
+  for Virtual List View (see draft-ietf-ldapext-ldapv3-vlv) and
+  Server-side Sorting (see RFC 2891) (thanks to Benjamin Dauvergne)
+  Note: This is still experimental! Even the API can change later.
+
+----------------------------------------------------------------
+Released 2.4.19 2015-01-10
+
+Changes since 2.4.18:
+
+Lib/
+* Fixed missing ReconnectLDAPObject._reconnect_lock when pickling
+  (see SF#64, thanks to Dan O'Reilly)
+* Added ldap.controls.pagedresults which is pure Python implementation of
+  Simple Paged Results Control (see RFC 2696) and delivers the correct
+  result size
+
+----------------------------------------------------------------
+Released 2.4.18 2014-10-09
+
+Changes since 2.4.17:
+
+Lib/
+* Fixed raising exception in LDAPObject.read_s() when reading
+  an entry returns empty search result
+
+----------------------------------------------------------------
+Released 2.4.17 2014-09-27
+
+Changes since 2.4.16:
+
+Lib/
+* New hook syncrepl_refreshdone() in ldap.syncrepl.SyncReplConsumer
+  (thanks to Petr Spacek and Chris Mikkelson)
+
+Modules/
+* Added support for getting file descriptor of connection
+  with ldap.OPT_DESC
+
+----------------------------------------------------------------
+Released 2.4.16 2014-09-10
+
+Changes since 2.4.15:
+
+Lib/
+* New convenience function ldap.dn.is_dn()
+* New convenience function ldap.escape_str()
+* New convenience methods LDAPObject.read_s() and
+  LDAPObject.find_unique_entry()
+* Fixed invoking start_tls_s() in ReconnectLDAPObject.reconnect()
+  (thanks to Philipp Hahn)
+
+----------------------------------------------------------------
+Released 2.4.15 2014-03-24
+
+Changes since 2.4.14:
+
+Lib/
+* Added missing modules ldap.controls.openldap and
+  ldap.controls.pwdpolicy to setup.py
+* Added missing imports to ldap.controls.pwdpolicy
+* Fixed ldap.controls.pwdpolicy.decodeControlValue() to decode
+  string of digits
+* Support for X-SUBST in schema element class LDAPSyntax
+* Support for X-ORDERED and X-ORIGIN in schema element class AttributeType
+* ldapurl: New scope 'subordinates' defined in
+  draft-sermersheim-ldap-subordinate-scope
+
+Modules/
+* New constant ldap.SCOPE_SUBORDINATE derived from ldap.h for
+  draft-sermersheim-ldap-subordinate-scope
+* Fixed constant ldap.sasl.CB_GETREALM (thanks to Martin Pfeifer)
+
+----------------------------------------------------------------
+Released 2.4.14 2014-01-31
+
+Changes since 2.4.13:
+
+Lib/
+* Added ldap.controls.openldap.SearchNoOpControl
+* New method ldap.async.AsyncSearchHandler.afterFirstResult()
+  for doing something right after successfully receiving but before
+  processing first result
+* Better log data written when invoking ldap.LDAPLock.acquire() and
+  ldap.LDAPLock.release()
+* LDAPObject and friends now pass `desc' to ldap.LDAPLock() which
+  results in better logging
+* ldapobject.ReconnectLDAPObject now uses internal class-wide
+  lock for serializing reconnects
+* Method signature of ReconnectLDAPObject.reconnect() changed to be able
+  to call it with separate retry_max and retry_delay values
+
+Modules/
+* Added support for retrieving negotiated TLS version/cipher
+  with LDAPObject.get_option() with the help of upcoming OpenLDAP libs
+
+----------------------------------------------------------------
+Released 2.4.13 2013-06-27
+
+Changes since 2.4.12:
+
+Lib/
+* ldapobject.ReconnectLDAPObject._apply_last_bind() now sends
+  anonymous simple bind request even if the calling application
+  did not to provoke ldap.SERVER_DOWN in method reconnect()
+* ldapobject.ReconnectLDAPObject.reconnect() now also catches
+  ldap.TIMEOUT exception after reconnection attempt
+* Several other fixes for ldapobject.ReconnectLDAPObject
+  (thanks to Jonathan Giannuzzi)
+
+----------------------------------------------------------------
+Released 2.4.12 2013-06-01
+
+Changes since 2.4.11:
+
+Lib/
+* Truly optional import of PyAsn1Error exception which should
+  not fail anymore if pyasn1 is not installed
+
+----------------------------------------------------------------
+Released 2.4.11 2013-05-27
+
+Changes since 2.4.10:
+
+Lib/
+* ldap.controls.DecodeControlTuples() now simply ignores
+  PyAsn1Error exception raised during decoding malformed
+  response control values in case of non-critical controls.
+* ldif.LDIFWriter.unparse() does not simply skip empty
+  records anymore.
+
+----------------------------------------------------------------
 Released 2.4.10 2012-06-07
 
 Changes since 2.4.9:
@@ -1018,4 +1296,4 @@ Released 2.0.0pre02 2002-02-01
 ----------------------------------------------------------------
 Released 1.10alpha3 2000-09-19
 
-$Id: CHANGES,v 1.291 2012/06/07 18:38:47 stroeder Exp $
+$Id: CHANGES,v 1.398 2016/11/18 07:01:45 stroeder Exp $

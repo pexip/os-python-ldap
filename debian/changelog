@@ -1,3 +1,41 @@
+python-ldap (2.4.28-0.1pexip1) pexip; urgency=medium
+
+  * Migrate to Stretch
+
+ -- John-Mark Bell <jmb@pexip.com>  Fri, 13 Jul 2018 14:26:45 +0100
+
+python-ldap (2.4.28-0.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * Imported Upstream version 2.4.28
+  * Use debhelper v10
+  * Use secure transport for homepage URL
+  * Update watch file
+  * Add dh-python to Build-Depends
+
+ -- Dr. Tobias Quathamer <toddy@debian.org>  Fri, 09 Dec 2016 10:49:25 +0100
+
+python-ldap (2.4.22-0.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * New upstream release.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Tue, 05 Jan 2016 18:58:42 +0200
+
+python-ldap (2.4.20-0.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * New upstream release. (Closes: #742487)
+  * watch: Update the url.
+
+ -- Timo Aaltonen <tjaalton@debian.org>  Thu, 24 Sep 2015 05:15:56 +0300
+
+python-ldap (2.4.10-1build1) trusty; urgency=medium
+
+  * Rebuild to drop files installed into /usr/share/pyshared.
+
+ -- Matthias Klose <doko@ubuntu.com>  Sun, 23 Feb 2014 13:52:02 +0000
+
 python-ldap (2.4.10-1pexip4) pexip; urgency=low
 
   * No-change rebuild
@@ -293,7 +331,7 @@ python-ldap (1.9.999.pre12-1) unstable; urgency=low
   * Added 'exit 0' to the end of the prerm scripts.
   * Added note to README.Debian about the change in default LDAP protocol
     version to v3.
-  * Updated standards version to 3.5.10. 
+  * Updated standards version to 3.5.10.
 
  -- Peter Hawkins <peterh@debian.org>  Wed, 28 May 2003 11:59:51 +1000
 

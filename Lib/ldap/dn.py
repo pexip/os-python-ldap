@@ -3,7 +3,7 @@ dn.py - misc stuff for handling distinguished names (see RFC 4514)
 
 See http://www.python-ldap.org/ for details.
 
-\$Id: dn.py,v 1.11 2010/06/03 12:26:39 stroeder Exp $
+\$Id: dn.py,v 1.16 2016/07/24 15:58:26 stroeder Exp $
 
 Compability:
 - Tested with Python 2.0+
@@ -31,7 +31,7 @@ def escape_dn_chars(s):
     s = s.replace('>' ,'\\>')
     s = s.replace(';' ,'\\;')
     s = s.replace('=' ,'\\=')
-    s = s.replace('\000' ,'\\\000')    
+    s = s.replace('\000' ,'\\\000')
     if s[0]=='#' or s[0]==' ':
       s = ''.join(('\\',s))
     if s[-1]==' ':
@@ -43,7 +43,7 @@ def str2dn(dn,flags=0):
   """
   This function takes a DN as string as parameter and returns
   a decomposed DN. It's the inverse to dn2str().
-  
+
   flags describes the format of the dn
 
   See also the OpenLDAP man-page ldap_str2dn(3)
@@ -69,7 +69,7 @@ def dn2str(dn):
 def explode_dn(dn,notypes=0,flags=0):
   """
   explode_dn(dn [, notypes=0]) -> list
-  
+
   This function takes a DN and breaks it up into its component parts.
   The notypes parameter is used to specify that only the component's
   attribute values be returned and not the attribute types.
@@ -95,7 +95,7 @@ def explode_dn(dn,notypes=0,flags=0):
 def explode_rdn(rdn,notypes=0,flags=0):
   """
   explode_rdn(rdn [, notypes=0]) -> list
-  
+
   This function takes a RDN and breaks it up into its component parts
   if it is a multi-valued RDN.
   The notypes parameter is used to specify that only the component's
@@ -108,3 +108,16 @@ def explode_rdn(rdn,notypes=0,flags=0):
     return [avalue or '' for atype,avalue,dummy in rdn_decomp]
   else:
     return ['='.join((atype,escape_dn_chars(avalue or ''))) for atype,avalue,dummy in rdn_decomp]
+
+
+def is_dn(s,flags=0):
+  """
+  Returns True is `s' can be parsed by ldap.dn.str2dn() like as a
+  distinguished host_name (DN), otherwise False is returned.
+  """
+  try:
+    str2dn(s,flags)
+  except Exception:
+    return False
+  else:
+    return True

@@ -3,7 +3,7 @@ ldapurl - handling of LDAP URLs as described in RFC 4516
 
 See http://www.python-ldap.org/ for details.
 
-\$Id: ldapurl.py,v 1.58 2012/06/07 18:40:59 stroeder Exp $
+\$Id: ldapurl.py,v 1.81 2016/11/11 14:41:07 stroeder Exp $
 
 Python compability note:
 This module only works with Python 2.0+ since
@@ -11,7 +11,7 @@ This module only works with Python 2.0+ since
 2. list comprehensions are used.
 """
 
-__version__ = '2.4.10'
+__version__ = '2.4.28'
 
 __all__ = [
   # constants
@@ -30,15 +30,24 @@ from urllib import quote,unquote
 LDAP_SCOPE_BASE = 0
 LDAP_SCOPE_ONELEVEL = 1
 LDAP_SCOPE_SUBTREE = 2
+LDAP_SCOPE_SUBORDINATES = 3
 
-SEARCH_SCOPE_STR = {None:'',0:'base',1:'one',2:'sub'}
+SEARCH_SCOPE_STR = {
+  None:'',
+  LDAP_SCOPE_BASE:'base',
+  LDAP_SCOPE_ONELEVEL:'one',
+  LDAP_SCOPE_SUBTREE:'sub',
+  LDAP_SCOPE_SUBORDINATES:'subordinates',
+}
 
 SEARCH_SCOPE = {
   '':None,
-  # the search scope strings defined in RFC2255
+  # the search scope strings defined in RFC 4516
   'base':LDAP_SCOPE_BASE,
   'one':LDAP_SCOPE_ONELEVEL,
   'sub':LDAP_SCOPE_SUBTREE,
+  # from draft-sermersheim-ldap-subordinate-scope
+  'subordinates':LDAP_SCOPE_SUBORDINATES,
 }
 
 # Some widely used types
@@ -70,7 +79,7 @@ class LDAPUrlExtension:
   Usable class attributes:
     critical
           Boolean integer marking the extension as critical
-    extype    
+    extype
           Type of extension
     exvalue
           Value of extension
@@ -109,7 +118,7 @@ class LDAPUrlExtension:
         '!'*(self.critical>0),
         self.extype,quote(self.exvalue or '')
       )
-    
+
   def __str__(self):
     return self.unparse()
 
@@ -174,7 +183,7 @@ class LDAPUrlExtensions(UserDict.UserDict):
       "other has to be instance of %s" % (self.__class__)
     )
     return self.data==other.data
-    
+
   def parse(self,extListStr):
     for extension_str in extListStr.strip().split(','):
       if extension_str:
@@ -255,11 +264,11 @@ class LDAPUrl:
     urlscheme,host,dn,attrs,scope,filterstr,extensions
     """
     if not isLDAPUrl(ldap_url):
-      raise ValueError,'Parameter ldap_url does not seem to be a LDAP URL.'
+      raise ValueError('Value %s for ldap_url does not seem to be a LDAP URL.' % (repr(ldap_url)))
     scheme,rest = ldap_url.split('://',1)
     self.urlscheme = scheme.strip()
     if not self.urlscheme in ['ldap','ldaps','ldapi']:
-      raise ValueError,'LDAP URL contains unsupported URL scheme %s.' % (self.urlscheme)
+      raise ValueError('LDAP URL contains unsupported URL scheme %s.' % (self.urlscheme))
     slash_pos = rest.find('/')
     qemark_pos = rest.find('?')
     if (slash_pos==-1) and (qemark_pos==-1):
@@ -279,7 +288,7 @@ class LDAPUrl:
         # Do not eat question mark
         rest = rest[qemark_pos:]
       else:
-        raise ValueError,'Something completely weird happened!'
+        raise ValueError('Something completely weird happened!')
     paramlist=rest.split('?',4)
     paramlist_len = len(paramlist)
     if paramlist_len>=1:
@@ -291,7 +300,7 @@ class LDAPUrl:
       try:
         self.scope = SEARCH_SCOPE[scope]
       except KeyError:
-        raise ValueError,"Search scope must be either one of base, one or sub. LDAP URL contained %s" % (repr(scope))
+        raise ValueError('Invalid search scope %s' % (repr(scope)))
     if paramlist_len>=4:
       filterstr = paramlist[3].strip()
       if not filterstr:
@@ -355,11 +364,11 @@ class LDAPUrl:
     if self.extensions:
       ldap_url = ldap_url+'?'+self.extensions.unparse()
     return ldap_url
-  
+
   def htmlHREF(self,urlPrefix='',hrefText=None,hrefTarget=None):
     """
     Returns a string with HTML link for this LDAP URL.
-    
+
     urlPrefix
         Prefix before LDAP URL (e.g. for addressing another web-based client)
     hrefText
@@ -401,9 +410,9 @@ class LDAPUrl:
       else:
         return None
     else:
-      raise AttributeError,"%s has no attribute %s" % (
+      raise AttributeError('%s has no attribute %s' % (
         self.__class__.__name__,name
-      )
+      ))
     return result # __getattr__()
 
   def __setattr__(self,name,value):

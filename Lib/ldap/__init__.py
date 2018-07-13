@@ -3,12 +3,12 @@ ldap - base module
 
 See http://www.python-ldap.org/ for details.
 
-$Id: __init__.py,v 1.83 2012/06/07 18:40:59 stroeder Exp $
+$Id: __init__.py,v 1.106 2016/11/11 14:41:07 stroeder Exp $
 """
 
 # This is also the overall release version number
 
-__version__ = '2.4.10'
+__version__ = '2.4.28'
 
 import sys
 
@@ -68,21 +68,23 @@ class LDAPLock:
     if __debug__:
       global _trace_level
       if _trace_level>=self._min_trace_level:
-        _trace_file.write('***%s %s.acquire()\n' % (self._desc,self.__class__.__name__))
+        _trace_file.write('***%s.acquire() %s %s\n' % (self.__class__.__name__,repr(self),self._desc))
     return self._lock.acquire()
 
   def release(self):
     if __debug__:
       global _trace_level
       if _trace_level>=self._min_trace_level:
-        _trace_file.write('***%s %s.release()\n' % (self._desc,self.__class__.__name__))
+        _trace_file.write('***%s.release() %s %s\n' % (self.__class__.__name__,repr(self),self._desc))
     return self._lock.release()
 
 
 # Create module-wide lock for serializing all calls into underlying LDAP lib
 _ldap_module_lock = LDAPLock(desc='Module wide')
 
-from functions import open,initialize,init,get_option,set_option
+from functions import open,initialize,init,get_option,set_option,escape_str,strf_secs,strp_secs
+
+from ldapobject import NO_UNIQUE_ENTRY
 
 from ldap.dn import explode_dn,explode_rdn,str2dn,dn2str
 del str2dn
