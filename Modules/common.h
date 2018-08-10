@@ -1,9 +1,8 @@
 /* common utility macros
- * See http://www.python-ldap.org/ for details.
- * $Id: common.h,v 1.8 2009/04/17 12:19:09 stroeder Exp $ */
+ * See https://www.python-ldap.org/ for details. */
 
-#ifndef __h_common 
-#define __h_common 
+#ifndef __h_common
+#define __h_common
 
 #define PY_SSIZE_T_CLEAN
 
@@ -21,19 +20,20 @@
 #include <sys/types.h>
 #endif
 
-/* Backwards compability with Python prior 2.5 */
-#if PY_VERSION_HEX < 0x02050000
-typedef int Py_ssize_t;
-#define PY_SSIZE_T_MAX INT_MAX
-#define PY_SSIZE_T_MIN INT_MIN
-#endif
-
 #include <string.h>
 #define streq( a, b ) \
 	( (*(a)==*(b)) && 0==strcmp(a,b) )
 
-void LDAPadd_methods( PyObject*d, PyMethodDef*methods );
+extern PyObject *LDAPerror_TypeError(const char *, PyObject *);
+
+void LDAPadd_methods(PyObject *d, PyMethodDef *methods);
+
 #define PyNone_Check(o) ((o) == Py_None)
 
-#endif /* __h_common_ */
+/* Py2/3 compatibility */
+#if PY_VERSION_HEX >= 0x03000000
+/* In Python 3, alias PyInt to PyLong */
+#define PyInt_FromLong PyLong_FromLong
+#endif
 
+#endif /* __h_common_ */

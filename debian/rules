@@ -1,10 +1,15 @@
 #!/usr/bin/make -f
 
-%:
-	dh $@ --with python2
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
-override_dh_installdocs:
-	dh_installdocs --link-doc=python-ldap
+export PYBUILD_NAME = ldap
+export PYBUILD_TEST_PYTEST = 0
+
+%:
+	dh $@ --with python2,python3 --buildsystem=pybuild
 
 override_dh_strip:
-	dh_strip --dbg-package=python-ldap-dbg
+	dh_strip -ppython-ldap --dbg-package=python-ldap-dbg
+	dh_strip -ppython3-ldap --dbg-package=python3-ldap-dbg
+
+override_dh_auto_test:

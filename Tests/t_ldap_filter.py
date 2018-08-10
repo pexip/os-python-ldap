@@ -1,12 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-Automatic tests for module ldap.filter
+Automatic tests for python-ldap's module ldap.filter
+
+See https://www.python-ldap.org/ for details.
 """
 
-# from Python's standard lib
+import os
 import unittest
 
-# from python-ldap
+# Switch off processing .ldaprc or ldap.conf before importing _ldap
+os.environ['LDAPNOINIT'] = '1'
+
 from ldap.filter import escape_filter_chars
 
 
@@ -19,15 +23,15 @@ class TestDN(unittest.TestCase):
         """
         test function escape_filter_chars() with escape_mode=0
         """
-        self.assertEquals(
+        self.assertEqual(
             escape_filter_chars(r'foobar'),
             'foobar'
         )
-        self.assertEquals(
+        self.assertEqual(
             escape_filter_chars(r'foo\bar'),
             r'foo\5cbar'
         )
-        self.assertEquals(
+        self.assertEqual(
             escape_filter_chars(
                 r'foo\bar',
                 escape_mode=0
@@ -39,7 +43,7 @@ class TestDN(unittest.TestCase):
         """
         test function escape_filter_chars() with escape_mode=1
         """
-        self.assertEquals(
+        self.assertEqual(
             escape_filter_chars(
                 '\xc3\xa4\xc3\xb6\xc3\xbc\xc3\x84\xc3\x96\xc3\x9c\xc3\x9f',
                 escape_mode=1
@@ -51,7 +55,7 @@ class TestDN(unittest.TestCase):
         """
         test function escape_filter_chars() with escape_mode=2
         """
-        self.assertEquals(
+        self.assertEqual(
             escape_filter_chars(
                 'foobar',
                 escape_mode=2

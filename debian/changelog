@@ -1,3 +1,108 @@
+python-ldap (3.1.0-2) unstable; urgency=medium
+
+  * Team upload
+
+  [ Willem van den Akker ]
+  * debian/control
+    - Update VCS links to DPMT repositories.
+    - add missing Multi-Arch options.
+
+  [ Ondřej Nový ]
+  * d/control: Removing redundant Priority field in binary package
+
+  [ Pierre-Elliott Bécue ]
+  * Add a call to dpkg-maintscript-helper symlink_to_dir to handle properly
+    the replacement of /u/s/doc/python-ldap-dbg symlink by a directory, in
+    order to smoothen the stretch -> buster transition. (Closes: #905198)
+    - d/control: Add the Pre-Depends: ${misc:Pre-Depends} entry on
+      python-ldap-dbg
+    - d/python-ldap-dbg.maintscript: Add the symlink_to_dir call.
+  * debian/control:
+    - Bump to standard version 4.2.0
+  * debian/rules:
+    - Add hardening=+all to DEB_BUILD_MAINT_OPTIONS for binaries.
+
+ -- Pierre-Elliott Bécue <becue@crans.org>  Fri, 10 Aug 2018 22:58:26 +0200
+
+python-ldap (3.1.0-1) unstable; urgency=medium
+
+  * New upstream release
+  * debian/control
+    - bump to standard version 4.1.4.
+    - remove ancient-python-version-field.
+    - add Multi-Arch: same.
+  * debian/python-ldap.docs
+    - rename to docs (avoid dependency other python variant)
+  * debian/rules
+    - remove dh_installdoc. We can use the default.
+
+ -- Willem van den Akker <wvdakker@wilsoft.nl>  Thu, 31 May 2018 13:51:54 +0200
+
+python-ldap (3.0.0-1) unstable; urgency=low
+
+  * New upstream release
+  * debian/control
+    - add Team-support
+    - removed python-ldap-doc dependency.
+
+ -- Willem van den Akker <wvdakker@wilsoft.nl>  Thu, 22 Mar 2018 07:02:42 +0100
+
+python-ldap (3.0.0~b4-1.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * Add Provides, Conflicts, Replaces for python{3,}-pyldap.
+    (Closes: #886847, #886847)
+
+ -- Thomas Goirand <zigo@debian.org>  Wed, 24 Jan 2018 11:49:33 +0100
+
+python-ldap (3.0.0~b4-1) unstable; urgency=medium
+
+  * New upstream version.
+  * debian/control
+    - VCS*: migrate to salsa.debian.org
+    - bump to standard version 4.1.3
+  * debian/copyright
+    - fixed incomplete entry (Closes: #885010)
+  * debian/compat
+    - bump to 11
+
+ -- Willem van den Akker <wvdakker@wilsoft.nl>  Wed, 10 Jan 2018 07:38:36 +0100
+
+python-ldap (3.0.0~b3-1) unstable; urgency=medium
+
+  [Timo Aaltonen]
+  * New upstream release.
+    - drop 01_setup_cfg.diff, obsolete
+  * Package python3-ldap. (Closes: #884882)
+
+  [Willem van den Akker]
+  * debian/watch
+    - handle 'b' and 'rc' tags.
+  * debian control
+    - bump standard version to 4.1.2.
+
+ -- Willem van den Akker <wvdakker@wilsoft.nl>  Thu, 21 Dec 2017 19:08:22 +0200
+
+python-ldap (2.5.2-1) unstable; urgency=low
+
+  * New maintainer (Closes: #868690).
+  * New upstream version 2.5.2
+  * debian/control
+    - change priority '-dbg' package to optional.
+    - bump standard version to 4.1.1.
+    - add VCS fields.
+  * debian/copyright
+    - make dep-5.
+
+ -- Willem van den Akker <wvdakker@wilsoft.nl>  Mon, 27 Nov 2017 19:16:57 +0100
+
+python-ldap (2.4.41-1) unstable; urgency=medium
+
+  * QA upload.
+  * New upstream version 2.4.41 (Closes: #771504)
+
+ -- Dr. Tobias Quathamer <toddy@debian.org>  Thu, 20 Jul 2017 19:56:43 +0200
+
 python-ldap (2.4.28-0.1) unstable; urgency=medium
 
   * Non-maintainer upload.
