@@ -1,3 +1,9 @@
+python-ldap (2.4.10-1pexip5) pexip; urgency=medium
+
+  * debian/patches/03_unknown_errors.diff: properly return unknown errors
+
+ -- John-Mark Bell <jmb@pexip.com>  Thu, 06 Jul 2018 15:15:30 +0100
+
 python-ldap (2.4.10-1pexip4) pexip; urgency=low
 
   * No-change rebuild

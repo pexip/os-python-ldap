@@ -1,0 +1,24 @@
+diff --git a/Modules/errors.c b/Modules/errors.c
+index ece438d..3e3677a 100644
+--- a/Modules/errors.c
++++ b/Modules/errors.c
+@@ -35,7 +35,8 @@ static PyObject* errobjects[ LDAP_ERROR_MAX-LDAP_ERROR_MIN+1 ];
+ PyObject*
+ LDAPerr(int errnum)
+ {
+-  if (errnum >= LDAP_ERROR_MIN && errnum <= LDAP_ERROR_MAX)
++  if (errnum >= LDAP_ERROR_MIN && errnum <= LDAP_ERROR_MAX &&
++      errobjects[errnum+LDAP_ERROR_OFFSET] != NULL)
+     PyErr_SetNone(errobjects[errnum+LDAP_ERROR_OFFSET]);
+   else
+     PyErr_SetObject(LDAPexception_class, 
+@@ -66,7 +67,8 @@ LDAPerror( LDAP *l, char *msg )
+     if (errnum == LDAP_NO_MEMORY)
+       return PyErr_NoMemory();
+ 
+-    if (errnum >= LDAP_ERROR_MIN && errnum <= LDAP_ERROR_MAX)
++    if (errnum >= LDAP_ERROR_MIN && errnum <= LDAP_ERROR_MAX &&
++        errobjects[errnum+LDAP_ERROR_OFFSET] != NULL)
+       errobj = errobjects[errnum+LDAP_ERROR_OFFSET];
+     else
+       errobj = LDAPexception_class;
