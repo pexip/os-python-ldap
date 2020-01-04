@@ -63,6 +63,8 @@ This module defines the following functions:
    :py:const:`2` for logging the method calls with arguments and the complete results and
    :py:const:`9` for also logging the traceback of method calls.
 
+   Additional keyword arguments are passed to :class:`LDAPObject`.
+
    .. seealso::
 
       :rfc:`4516` - Lightweight Directory Access Protocol (LDAP): Uniform Resource Locator
@@ -121,9 +123,9 @@ Options
    :manpage:`ldap.conf(5)` and :manpage:`ldap_get_option(3)`
 
 
-For use with functions :py:func:set_option() and :py:func:get_option()
-and methods :py:method:LDAPObject.set_option() and :py:method:LDAPObject.get_option() the
-following option identifiers are defined as constants:
+For use with functions :py:func:`set_option` and :py:func:`get_option` and
+methods :py:meth:`LDAPObject.set_option` and :py:meth:`LDAPObject.get_option`
+the following option identifiers are defined as constants:
 
 .. py:data:: OPT_API_FEATURE_INFO
 
@@ -579,33 +581,16 @@ LDAPObject classes
 
 .. py:class:: LDAPObject
 
-   Instances of :py:class:`LDAPObject` are returned by :py:func:`initialize()`
-   and :py:func:`open()` (deprecated). The connection is automatically unbound
+   Instances of :py:class:`LDAPObject` are returned by :py:func:`initialize()`.
+   The connection is automatically unbound
    and closed when the LDAP object is deleted.
 
-   Internally :py:class:`LDAPObject` is set to :py:class:`SimpleLDAPObject`
-   by default.
+   Internally :py:class:`LDAPObject` is set to
+   :py:class:`~ldap.ldapobject.SimpleLDAPObject` by default.
 
-.. py:class:: SimpleLDAPObject(uri [, trace_level=0 [, trace_file=sys.stdout [, trace_stack_limit=5]]])
+.. autoclass:: ldap.ldapobject.SimpleLDAPObject
 
-   This basic class wraps all methods of the underlying C API object.
-
-   The arguments are same like for function :py:func:`initialize()`.
-
-.. py:class:: ReconnectLDAPObject(uri [, trace_level=0 [, trace_file=sys.stdout [, trace_stack_limit=5] [, retry_max=1 [, retry_delay=60.0]]]])
-
-   This class is derived from :py:class:`SimpleLDAPObject` and used for automatic
-   reconnects when using the synchronous request methods (see below). This class
-   also implements the pickle protocol.
-
-   The first arguments are same like for function :py:func:`initialize()`.
-
-   For automatic reconnects it has additional arguments:
-
-   *retry_max* specifies the number of reconnect attempts before
-   re-raising the :py:exc:`ldap.SERVER_DOWN` exception.
-
-   *retry_delay* specifies the time in seconds between reconnect attempts.
+.. autoclass:: ldap.ldapobject.ReconnectLDAPObject
 
 
 .. _ldap-controls:
