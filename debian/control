@@ -8,7 +8,7 @@ Build-Depends: debhelper (>= 10), python-all-dev (>= 2.6.6-3~), python-all-dbg,
  libldap2-dev, libsasl2-dev, dh-python, libssl1.0-dev | libssl-dev (<< 1.1)
 Homepage: https://www.python-ldap.org/
 X-Python-Version: >= 2.3
-XS-Pexip-Upstream: http://ftp.debian.org/debian/ stretch
+XS-Pexip-Upstream: http://ftp.debian.org/debian/ buster
 
 Package: python-ldap
 Architecture: any
