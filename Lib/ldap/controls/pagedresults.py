@@ -3,9 +3,7 @@
 ldap.controls.paged - classes for Simple Paged control
 (see RFC 2696)
 
-See http://www.python-ldap.org/ for project details.
-
-$Id: pagedresults.py,v 1.2 2014/12/12 10:10:23 stroeder Exp $
+See https://www.python-ldap.org/ for project details.
 """
 
 __all__ = [
@@ -46,7 +44,7 @@ class SimplePagedResultsControl(RequestControl,ResponseControl):
   def decodeControlValue(self,encodedControlValue):
     decodedValue,_ = decoder.decode(encodedControlValue,asn1Spec=PagedResultsControlValue())
     self.size = int(decodedValue.getComponentByName('size'))
-    self.cookie = str(decodedValue.getComponentByName('cookie'))
+    self.cookie = bytes(decodedValue.getComponentByName('cookie'))
 
 
 KNOWN_RESPONSE_CONTROLS[SimplePagedResultsControl.controlType] = SimplePagedResultsControl

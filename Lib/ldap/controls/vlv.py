@@ -3,9 +3,7 @@
 ldap.controls.vlv - classes for Virtual List View
 (see draft-ietf-ldapext-ldapv3-vlv)
 
-See http://www.python-ldap.org/ for project details.
-
-$Id: vlv.py,v 1.3 2015/07/07 12:46:31 stroeder Exp $
+See https://www.python-ldap.org/ for project details.
 """
 
 __all__ = [
@@ -127,13 +125,19 @@ class VLVResponseControl(ResponseControl):
     def decodeControlValue(self,encoded):
         p, rest = decoder.decode(encoded, asn1Spec=VirtualListViewResponseType())
         assert not rest, 'all data could not be decoded'
-        self.target_position = int(p.getComponentByName('targetPosition'))
-        self.content_count = int(p.getComponentByName('contentCount'))
-        self.result = int(p.getComponentByName('virtualListViewResult'))
-        self.result_code = p.getComponentByName('virtualListViewResult') \
-                .prettyOut(self.result)
-        self.context_id = p.getComponentByName('contextID')
-        if self.context_id:
-            self.context_id = str(self.context_id)
+        self.targetPosition = int(p.getComponentByName('targetPosition'))
+        self.contentCount = int(p.getComponentByName('contentCount'))
+        virtual_list_view_result = p.getComponentByName('virtualListViewResult')
+        self.virtualListViewResult = int(virtual_list_view_result)
+        context_id = p.getComponentByName('contextID')
+        if context_id.hasValue():
+            self.contextID = str(context_id)
+        else:
+            self.contextID = None
+        # backward compatibility class attributes
+        self.target_position = self.targetPosition
+        self.content_count = self.contentCount
+        self.result = self.virtualListViewResult
+        self.context_id = self.contextID
 
 KNOWN_RESPONSE_CONTROLS[VLVResponseControl.controlType] = VLVResponseControl

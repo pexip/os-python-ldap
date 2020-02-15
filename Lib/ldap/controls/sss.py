@@ -3,9 +3,7 @@
 ldap.controls.sss - classes for Server Side Sorting
 (see RFC 2891)
 
-See http://www.python-ldap.org/ for project details.
-
-$Id: sss.py,v 1.3 2016/09/26 22:06:54 stroeder Exp $
+See https://www.python-ldap.org/ for project details.
 """
 
 __all__ = [
@@ -121,10 +119,15 @@ class SSSResponseControl(ResponseControl):
     def decodeControlValue(self, encoded):
         p, rest = decoder.decode(encoded, asn1Spec=SortResultType())
         assert not rest, 'all data could not be decoded'
-        self.result = int(p.getComponentByName('sortResult'))
-        self.result_code = p.getComponentByName('sortResult').prettyOut(self.result)
-        self.attribute_type_error = p.getComponentByName('attributeType')
+        sort_result = p.getComponentByName('sortResult')
+        self.sortResult = int(sort_result)
+        attribute_type = p.getComponentByName('attributeType')
+        if attribute_type.hasValue():
+            self.attributeType = attribute_type
+        else:
+            self.attributeType = None
+        # backward compatibility class attributes
+        self.result = self.sortResult
+        self.attribute_type_error = self.attributeType
 
-
-KNOWN_RESPONSE_CONTROLS[SSSRequestControl.controlType] = SSSRequestControl
 KNOWN_RESPONSE_CONTROLS[SSSResponseControl.controlType] = SSSResponseControl

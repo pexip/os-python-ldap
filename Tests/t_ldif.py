@@ -2,21 +2,23 @@
 """
 Automatic tests for python-ldap's module ldif
 
-See http://www.python-ldap.org/ for details.
-
-$Id: t_ldif.py,v 1.22 2016/07/30 17:15:22 stroeder Exp $
+See https://www.python-ldap.org/ for details.
 """
 
-# from Python's standard lib
-import unittest
+from __future__ import unicode_literals
+
+import os
 import textwrap
+import unittest
 
 try:
     from StringIO import StringIO
 except ImportError:
     from io import StringIO
 
-# from python-ldap
+# Switch off processing .ldaprc or ldap.conf before importing _ldap
+os.environ['LDAPNOINIT'] = '1'
+
 import ldif
 
 
@@ -186,7 +188,7 @@ class TestEntryRecords(TestLDIFParser):
              value
             attrib2: %s
 
-            """ % (b'asdf.'*20), [
+            """ % ('asdf.'*20), [
                 (
                     'cn=x,cn=y,cn=z',
                     {
@@ -250,7 +252,51 @@ class TestEntryRecords(TestLDIFParser):
             ]
         )
 
+    def test_big_binary(self):
+        self.check_records(
+            """
+            dn: cn=x,cn=y,cn=z
+            attrib:: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+             AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+             AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+             AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+             AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+             AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+             AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+             AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+             AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+             =
+
+            """,
+            [
+                (
+                    'cn=x,cn=y,cn=z',
+                    {'attrib': [500*b'\0']},
+                ),
+            ]
+        )
+
     def test_unicode(self):
+        # Encode "Ströder" as UTF-8+Base64
+        # Putting "Ströder" in a single line would be an invalid LDIF file
+        # per https://tools.ietf.org/html/rfc2849 (only safe ascii is allowed in a file)
+        self.check_records(
+            """
+            dn: cn=Michael Stroeder,dc=stroeder,dc=com
+            lastname:: U3Ryw7ZkZXI=
+
+            """,
+            [
+                (
+                    'cn=Michael Stroeder,dc=stroeder,dc=com',
+                    {'lastname': [b'Str\303\266der']},
+                ),
+            ]
+        )
+
+    def test_unencoded_unicode(self):
+        # Encode "Ströder" as UTF-8, without base64
+        # This is an invalid LDIF file, but such files are often found in the wild.
         self.check_records(
             """
             dn: cn=Michael Stroeder,dc=stroeder,dc=com
@@ -421,7 +467,7 @@ class TestEntryRecords(TestLDIFParser):
             """
 
             # comment before version
-               
+
             version: 1
 
 
@@ -457,7 +503,7 @@ class TestEntryRecords(TestLDIFParser):
 
     def test_multiple_empty_lines(self):
         """
-        see http://sourceforge.net/p/python-ldap/feature-requests/18/
+        test malformed LDIF with multiple empty lines
         """
         self.check_records(
             """
@@ -540,7 +586,7 @@ class TestChangeRecords(TestLDIFParser):
             """
 
             # comment before version
-               
+
             version: 1
 
 
@@ -640,10 +686,33 @@ class TestChangeRecords(TestLDIFParser):
             ldif_string = textwrap.dedent(bad_ldif_string).lstrip() + '\n'
             try:
                 res = self._parse_records(ldif_string)
-            except ValueError, value_error:
+            except ValueError as value_error:
                 pass
             else:
-                self.fail("should have raised ValueError: %r" % ldif_str)
+                self.fail("should have raised ValueError: %r" % bad_ldif_string)
+
+    def test_mod_increment(self):
+        self.check_records(
+            """
+            version: 1
+
+            dn: cn=x,cn=y,cn=z
+            changetype: modify
+            increment: gidNumber
+            gidNumber: 1
+            -
+
+            """,
+            [
+                (
+                    'cn=x,cn=y,cn=z',
+                    [
+                        (ldif.MOD_OP_INTEGER['increment'], 'gidNumber', [b'1']),
+                    ],
+                    None,
+                ),
+            ],
+        )
 
 
 if __name__ == '__main__':

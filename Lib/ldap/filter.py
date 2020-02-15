@@ -1,11 +1,9 @@
 """
 filters.py - misc stuff for handling LDAP filter strings (see RFC2254)
 
-See http://www.python-ldap.org/ for details.
+See https://www.python-ldap.org/ for details.
 
-\$Id: filter.py,v 1.11 2016/07/24 15:14:56 stroeder Exp $
-
-Compability:
+Compatibility:
 - Tested with Python 2.0+
 """
 
@@ -56,7 +54,7 @@ def filter_format(filter_template,assertion_values):
         List or tuple of assertion values. Length must match
         count of %s in filter_template.
   """
-  return filter_template % (tuple(map(escape_filter_chars,assertion_values)))
+  return filter_template % tuple(escape_filter_chars(v) for v in assertion_values)
 
 
 def time_span_filter(

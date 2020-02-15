@@ -2,13 +2,9 @@
 Demo for using ldap.resiter.ResultProcessor
 written by Michael Stroeder <michael@stroeder.com>
 
-See http://www.python-ldap.org for details.
-
-\$Id: resiter.py,v 1.2 2014/11/18 08:27:22 stroeder Exp $
-
-Python compability note:
-Requires Python 2.3+
+See https://www.python-ldap.org for details.
 """
+from __future__ import print_function
 
 import ldap,ldap.resiter
 
@@ -21,6 +17,6 @@ msgid = l.search('dc=stroeder,dc=de',ldap.SCOPE_SUBTREE,'(cn=m*)')
 
 result_iter = l.allresults(msgid)
 for result_type,result_list,result_msgid,result_serverctrls in result_iter:
-  print result_type,result_list,result_msgid,result_serverctrls
+  print(result_type,result_list,result_msgid,result_serverctrls)
 
 l.unbind_s()
