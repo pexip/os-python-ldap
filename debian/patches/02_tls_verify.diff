@@ -1,37 +1,33 @@
-diff --git a/Lib/ldap/ldapobject.py b/Lib/ldap/ldapobject.py
-index c1e906d..da08aa9 100644
 --- a/Lib/ldap/ldapobject.py
 +++ b/Lib/ldap/ldapobject.py
-@@ -606,6 +606,9 @@ class SimpleLDAPObject:
+@@ -918,6 +918,9 @@
        invalue = RequestControlTuples(invalue)
      return self._ldap_call(self._l.set_option,option,invalue)
  
 +  def register_tls_verify_cb(self,callback):
 +    return self._ldap_call(self._l.register_tls_verify_cb,callback)
 +
-   def search_subschemasubentry_s(self,dn=''):
+   def search_subschemasubentry_s(self,dn=None):
      """
      Returns the distinguished name of the sub schema sub entry
-diff --git a/Modules/LDAPObject.c b/Modules/LDAPObject.c
-index 1b2326a..0c32cfe 100644
 --- a/Modules/LDAPObject.c
 +++ b/Modules/LDAPObject.c
-@@ -18,7 +18,14 @@
- #include <sasl.h>
+@@ -16,7 +16,14 @@
+ #include <sasl/sasl.h>
  #endif
  
 +#ifdef HAVE_TLS
 +#include <openssl/ssl.h>
 +#endif
 +
- static void free_attrs(char***, PyObject*);
+ static void free_attrs(char ***);
 +#ifdef HAVE_TLS
 +static int global_tls_connect_callback(struct ldap *, void *, void *, void *);
 +#endif
  
  /* constructor */
  
-@@ -31,6 +38,33 @@ newLDAPObject( LDAP* l )
+@@ -30,6 +37,33 @@
      self->ldap = l;
      self->_save = NULL;
      self->valid = 1;
@@ -65,28 +61,16 @@ index 1b2326a..0c32cfe 100644
      return self;
  }
  
-@@ -39,6 +73,8 @@ newLDAPObject( LDAP* l )
+@@ -38,6 +72,8 @@
  static void
- dealloc( LDAPObject* self )
+ dealloc(LDAPObject *self)
  {
 +    Py_XDECREF(self->tls_cb);
 +    self->tls_cb = NULL;
      if (self->ldap) {
          if (self->valid) {
-             LDAP_BEGIN_ALLOW_THREADS( self );
-@@ -1161,16 +1197,116 @@ l_ldap_start_tls_s( LDAPObject* self, PyObject* args )
-     if (!PyArg_ParseTuple( args, "" )) return NULL;
-     if (not_valid(self)) return NULL;
- 
-+    LDAP_BEGIN_ALLOW_THREADS(self);
-     result = ldap_start_tls_s( self->ldap, NULL, NULL );
-+    LDAP_END_ALLOW_THREADS(self);
-     if ( result != LDAP_SUCCESS ){
-         ldap_set_option(self->ldap, LDAP_OPT_ERROR_NUMBER, &result);
-         return LDAPerror( self->ldap, "ldap_start_tls_s" );
-     }
- 
-     Py_INCREF(Py_None);
+             LDAP_BEGIN_ALLOW_THREADS(self);
+@@ -1375,6 +1411,104 @@
      return Py_None;
  }
  
@@ -191,38 +175,34 @@ index 1b2326a..0c32cfe 100644
  #endif
  
  /* ldap_set_option */
-@@ -1326,6 +1462,7 @@ static PyMethodDef methods[] = {
-     {"search_ext",      (PyCFunction)l_ldap_search_ext,         METH_VARARGS },
+@@ -1536,6 +1670,7 @@
+     {"search_ext", (PyCFunction)l_ldap_search_ext, METH_VARARGS},
  #ifdef HAVE_TLS
-     {"start_tls_s",     (PyCFunction)l_ldap_start_tls_s,        METH_VARARGS },
+     {"start_tls_s", (PyCFunction)l_ldap_start_tls_s, METH_VARARGS},
 +    {"register_tls_verify_cb", (PyCFunction)l_ldap_register_tls_verify_cb, METH_VARARGS },
  #endif
-     {"whoami_s",        (PyCFunction)l_ldap_whoami_s,           METH_VARARGS },
-     {"passwd",          (PyCFunction)l_ldap_passwd,             METH_VARARGS },
-diff --git a/Modules/LDAPObject.h b/Modules/LDAPObject.h
-index b0ffbbe..bfaeed7 100644
+     {"whoami_s", (PyCFunction)l_ldap_whoami_s, METH_VARARGS},
+     {"passwd", (PyCFunction)l_ldap_passwd, METH_VARARGS},
 --- a/Modules/LDAPObject.h
 +++ b/Modules/LDAPObject.h
-@@ -23,6 +23,9 @@ typedef struct {
- 	LDAP* ldap;
- 	_threadstate	_save; /* for thread saving on referrals */
- 	int valid;
-+        int tls_is_openssl;
-+        PyObject *tls_cb;
-+        void (*old_tls_cb)(void);
+@@ -21,6 +21,9 @@
+     PyObject_HEAD LDAP *ldap;
+     _threadstate _save;         /* for thread saving on referrals */
+     int valid;
++    int tls_is_openssl;
++    PyObject *tls_cb;
++    void (*old_tls_cb)(void);
  } LDAPObject;
  
  extern PyTypeObject LDAP_Type;
-diff --git a/setup.cfg b/setup.cfg
-index f1b1c48..2a156c5 100644
 --- a/setup.cfg
 +++ b/setup.cfg
-@@ -4,7 +4,7 @@
+@@ -2,7 +2,7 @@
  defines = HAVE_SASL HAVE_TLS HAVE_LIBLDAP_R
  extra_compile_args = 
  extra_objects = 
--libs = ldap_r
-+libs = ldap_r ssl crypto
+-libs = ldap_r lber
++libs = ldap_r lber ssl crypto
  
  [install]
  compile = 1

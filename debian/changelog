@@ -1,3 +1,12 @@
+python-ldap (3.1.0-2pexip1) pexip; urgency=medium
+
+  * Migrate to Buster
+  * Refresh patches:
+    debian/patches/02_tls_verify.diff
+    debian/patches/03_unknown_errors.diff
+
+ -- Vincent Sanders <vince@pexip.com>  Mon, 09 Mar 2020 12:09:09 +0000
+
 python-ldap (3.1.0-2) unstable; urgency=medium
 
   * Team upload
