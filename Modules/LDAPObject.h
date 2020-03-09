@@ -1,34 +1,33 @@
-/* See http://www.python-ldap.org/ for details.
- * $Id: LDAPObject.h,v 1.10 2009/04/17 12:19:09 stroeder Exp $ */
+/* See https://www.python-ldap.org/ for details. */
 
-#ifndef __h_LDAPObject 
-#define __h_LDAPObject 
+#ifndef __h_LDAPObject
+#define __h_LDAPObject
 
 #include "common.h"
 
 #include "lber.h"
 #include "ldap.h"
-#if LDAP_API_VERSION < 2000
-#error Current python-ldap requires OpenLDAP 2.x
+#if LDAP_API_VERSION < 2040
+#error Current python-ldap requires OpenLDAP 2.4.x
 #endif
 
 #if PYTHON_API_VERSION < 1007
-typedef PyObject*	_threadstate;
+typedef PyObject *_threadstate;
 #else
-typedef PyThreadState*	_threadstate;
+typedef PyThreadState *_threadstate;
 #endif
 
 typedef struct {
-        PyObject_HEAD
-	LDAP* ldap;
-	_threadstate	_save; /* for thread saving on referrals */
-	int valid;
+    PyObject_HEAD LDAP *ldap;
+    _threadstate _save;         /* for thread saving on referrals */
+    int valid;
 } LDAPObject;
 
 extern PyTypeObject LDAP_Type;
-#define LDAPObject_Check(v)     ((v)->ob_type == &LDAP_Type)
 
-extern LDAPObject *newLDAPObject( LDAP* );
+#define LDAPObject_Check(v)     (Py_TYPE(v) == &LDAP_Type)
+
+extern LDAPObject *newLDAPObject(LDAP *);
 
 /* macros to allow thread saving in the context of an LDAP connection */
 
@@ -49,4 +48,3 @@ extern LDAPObject *newLDAPObject( LDAP* );
 	}
 
 #endif /* __h_LDAPObject */
-

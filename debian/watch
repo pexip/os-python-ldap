@@ -1,2 +1,4 @@
 version=4
-https://pypi.debian.net/python-ldap/python-ldap-([\d.]+)\.tar\.gz
+opts="uversionmangle=s/b/~b/;s/rc/~rc/" \
+https://pypi.debian.net/python-ldap/python-ldap-([\d.]+.[\d+\w*\d*]*)\.tar\.gz
+
