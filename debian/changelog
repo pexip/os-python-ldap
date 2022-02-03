@@ -1,3 +1,10 @@
+python-ldap (3.1.0-2pexip4) pexip; urgency=medium
+
+  * debian/patches/04_nullable_stropts.diff: allow setting string options to
+    None
+
+ -- John-Mark Bell <jmb@pexip.com>  Thu, 03 Feb 2022 16:03:48 +0000
+
 python-ldap (3.1.0-2pexip3) pexip; urgency=medium
 
   * No-change rebuild

@@ -1,0 +1,21 @@
+diff --git a/Modules/options.c b/Modules/options.c
+index 85560e6..5aca457 100644
+--- a/Modules/options.c
++++ b/Modules/options.c
+@@ -131,9 +131,13 @@ LDAP_set_option(LDAPObject *self, int option, PyObject *value)
+     case LDAP_OPT_X_SASL_SECPROPS:
+ #endif
+         /* String valued options */
+-        if (!PyArg_Parse(value, "s:set_option", &strval))
+-            return 0;
+-        ptr = strval;
++        if (value == Py_None) {
++            ptr = NULL;
++        } else {
++            if (!PyArg_Parse(value, "s:set_option", &strval))
++                return 0;
++            ptr = strval;
++        }
+         break;
+     case LDAP_OPT_TIMEOUT:
+     case LDAP_OPT_NETWORK_TIMEOUT:
