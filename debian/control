@@ -11,7 +11,7 @@ Build-Depends: debhelper-compat (= 12),
  python3-all-dbg,
  python3-setuptools,
  python3-pyasn1-modules,
- libssl1.0-dev | libssl-dev (<< 1.1),
+ libssl-dev (>= 3)
 Homepage: https://www.python-ldap.org
 Vcs-Browser: https://salsa.debian.org/python-team/modules/python-ldap
 Vcs-Git: https://salsa.debian.org/python-team/modules/python-ldap.git
