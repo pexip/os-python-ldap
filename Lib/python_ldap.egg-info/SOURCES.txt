@@ -152,6 +152,7 @@ Tests/t_edit.py
 Tests/t_ldap_asyncsearch.py
 Tests/t_ldap_controls_libldap.py
 Tests/t_ldap_controls_ppolicy.py
+Tests/t_ldap_controls_sss.py
 Tests/t_ldap_dn.py
 Tests/t_ldap_filter.py
 Tests/t_ldap_functions.py
