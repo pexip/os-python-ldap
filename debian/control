@@ -17,7 +17,7 @@ Build-Depends: debhelper (>= 11), python-all-dev (>= 2.6.6-3~), python-all-dbg,
 Homepage: https://www.python-ldap.org
 Vcs-Browser: https://salsa.debian.org/python-team/modules/python-ldap
 Vcs-Git: https://salsa.debian.org/python-team/modules/python-ldap.git
-XS-Pexip-Upstream: http://ftp.debian.org/debian/ buster
+XS-Pexip-Upstream: http://deb.debian.org/debian/ bullseye
 
 Package: python-ldap
 Architecture: any
