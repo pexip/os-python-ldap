@@ -1,3 +1,38 @@
+python-ldap (3.2.0-4) unstable; urgency=medium
+
+  * Drop python2 support; Closes: #937880
+
+ -- Sandro Tosi <morph@debian.org>  Sat, 04 Jan 2020 14:01:21 -0500
+
+python-ldap (3.2.0-3) unstable; urgency=medium
+
+  [ Emmanuel Arias ]
+  * d/control: Bump Standard-Version to 4.4.1 (from 4.4.0)
+
+  [ Sandro Tosi ]
+  * Drop python-pyldap transitional packages, no more rdeps left
+
+ -- Sandro Tosi <morph@debian.org>  Fri, 25 Oct 2019 15:39:42 -0400
+
+python-ldap (3.2.0-2) unstable; urgency=medium
+
+  * Team upload.
+  * Reintroduce Python 2 support.
+
+ -- Ondřej Nový <onovy@debian.org>  Tue, 27 Aug 2019 15:32:31 +0200
+
+python-ldap (3.2.0-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream release.
+  * Use debhelper-compat instead of debian/compat.
+  * Drop Python 2 support.
+  * Bump debhelper compat level to 12.
+  * Bump standards version to 4.4.0 (no changes).
+  * Enable autopkgtest-pkg-python testsuite.
+
+ -- Ondřej Nový <onovy@debian.org>  Mon, 26 Aug 2019 07:52:31 +0200
+
 python-ldap (3.1.0-2pexip4) pexip; urgency=medium
 
   * debian/patches/04_nullable_stropts.diff: allow setting string options to

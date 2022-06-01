@@ -1,6 +1,6 @@
 Metadata-Version: 1.2
 Name: python-ldap
-Version: 3.1.0
+Version: 3.2.0
 Summary: Python modules for implementing LDAP clients
 Home-page: https://www.python-ldap.org/
 Author: python-ldap project
@@ -30,6 +30,7 @@ Classifier: Programming Language :: Python :: 3
 Classifier: Programming Language :: Python :: 3.4
 Classifier: Programming Language :: Python :: 3.5
 Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
 Classifier: Topic :: Database
 Classifier: Topic :: Internet
 Classifier: Topic :: Software Development :: Libraries :: Python Modules
