@@ -1,3 +1,9 @@
+python-ldap (3.2.0-4pexip1) pexip; urgency=medium
+
+  * Initial bullseye build
+
+ -- Mark Hymers <mark.hymers@pexip.com>  Thu, 02 Jun 2022 14:42:49 +0100
+
 python-ldap (3.2.0-4) unstable; urgency=medium
 
   * Drop python2 support; Closes: #937880
