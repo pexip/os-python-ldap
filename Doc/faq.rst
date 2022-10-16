@@ -29,7 +29,7 @@ Usage
 .. _pyldap: https://pypi.org/project/pyldap/
 
 
-**Q**: Does it work with Python 2.6? (1.5|2.0|2.1|2.2|2.3|2.4|2.5)?
+**Q**: Does it work with Python 2.7? (1.5|2.0|2.1|2.2|2.3|2.4|2.5|2.6|2.7)?
 
   **A**: No. Old versions of python-ldap are still available from PyPI, though.
 
@@ -45,10 +45,10 @@ That used to work, but after an upgrade it does not work anymore. Why?
     providing the full functionality.
 
 **Q**: My script bound to MS Active Directory but a a search operation results
-in the exception :exc:`ldap.OPERATIONS_ERROR` with the diagnostic messages text
-“In order to perform this operation a successful bind must be
-completed on the connection.”
-What's happening here?
+in the exception :exc:`ldap.OPERATIONS_ERROR` with the diagnostic message text
+*“In order to perform this operation a successful bind must be completed on the
+connection.”* Alternatively, a Samba 4 AD returns the diagnostic message
+*"Operation unavailable without authentication"*. What's happening here?
 
     **A**: When searching from the domain level, MS AD returns referrals (search continuations)
     for some objects to indicate to the client where to look for these objects.
@@ -65,6 +65,10 @@ What's happening here?
       l = ldap.initialize('ldap://foobar')
       l.set_option(ldap.OPT_REFERRALS,0)
 
+    Note that setting the above option does NOT prevent search continuations
+    from being returned, rather only that ``libldap`` won't attempt to resolve
+    referrals.
+
 **Q**: Why am I seeing a ``ldap.SUCCESS`` traceback as output?
 
     **A**: Most likely, you are using one of the non-synchronous calls, and probably
@@ -79,6 +83,11 @@ What's happening here?
     You should not do that nowadays since
     `LDAPv2 is considered historic <https://tools.ietf.org/html/rfc3494>`_
     since many years.
+
+**Q**: My TLS settings are ignored/TLS isn't working?
+
+    **A**: Make sure you call `set_option( ldap.OPT_X_TLS_NEWCTX, 0 )`
+    after changing any of the `OPT_X_TLS_*` options.
 
 
 

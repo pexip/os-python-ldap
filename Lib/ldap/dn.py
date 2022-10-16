@@ -3,13 +3,11 @@ dn.py - misc stuff for handling distinguished names (see RFC 4514)
 
 See https://www.python-ldap.org/ for details.
 """
-
-import sys
 from ldap.pkginfo import __version__
 
 import _ldap
 assert _ldap.__version__==__version__, \
-       ImportError('ldap %s and _ldap %s version mismatch!' % (__version__,_ldap.__version__))
+       ImportError(f'ldap {__version__} and _ldap {_ldap.__version__} version mismatch!')
 
 import ldap.functions
 
@@ -29,10 +27,10 @@ def escape_dn_chars(s):
     s = s.replace(';' ,'\\;')
     s = s.replace('=' ,'\\=')
     s = s.replace('\000' ,'\\\000')
-    if s[0]=='#' or s[0]==' ':
-      s = ''.join(('\\',s))
     if s[-1]==' ':
       s = ''.join((s[:-1],'\\ '))
+    if s[0]=='#' or s[0]==' ':
+      s = ''.join(('\\',s))
   return s
 
 
@@ -47,8 +45,6 @@ def str2dn(dn,flags=0):
   """
   if not dn:
     return []
-  if sys.version_info[0] < 3 and isinstance(dn, unicode):
-      dn = dn.encode('utf-8')
   return ldap.functions._ldap_function_call(None,_ldap.str2dn,dn,flags)
 
 
@@ -111,7 +107,7 @@ def explode_rdn(rdn, notypes=False, flags=0):
 
 def is_dn(s,flags=0):
   """
-  Returns True is `s' can be parsed by ldap.dn.str2dn() like as a
+  Returns True if `s' can be parsed by ldap.dn.str2dn() as a
   distinguished host_name (DN), otherwise False is returned.
   """
   try:

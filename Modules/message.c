@@ -53,7 +53,7 @@ LDAPmessage_to_python(LDAP *ld, LDAPMessage *m, int add_ctrls,
         if (dn == NULL) {
             Py_DECREF(result);
             ldap_msgfree(m);
-            return LDAPerror(ld, "ldap_get_dn");
+            return LDAPerror(ld);
         }
 
         attrdict = PyDict_New();
@@ -69,7 +69,7 @@ LDAPmessage_to_python(LDAP *ld, LDAPMessage *m, int add_ctrls,
             Py_DECREF(result);
             ldap_msgfree(m);
             ldap_memfree(dn);
-            return LDAPerror(ld, "ldap_get_entry_controls");
+            return LDAPerror(ld);
         }
 
         /* convert serverctrls to list of tuples */
@@ -81,7 +81,7 @@ LDAPmessage_to_python(LDAP *ld, LDAPMessage *m, int add_ctrls,
             ldap_msgfree(m);
             ldap_memfree(dn);
             ldap_controls_free(serverctrls);
-            return LDAPerror(ld, "LDAPControls_to_List");
+            return LDAPerror(ld);
         }
         ldap_controls_free(serverctrls);
 
@@ -201,7 +201,7 @@ LDAPmessage_to_python(LDAP *ld, LDAPMessage *m, int add_ctrls,
             Py_DECREF(reflist);
             Py_DECREF(result);
             ldap_msgfree(m);
-            return LDAPerror(ld, "ldap_parse_reference");
+            return LDAPerror(ld);
         }
         /* convert serverctrls to list of tuples */
         if (!(pyctrls = LDAPControls_to_List(serverctrls))) {
@@ -212,7 +212,7 @@ LDAPmessage_to_python(LDAP *ld, LDAPMessage *m, int add_ctrls,
             Py_DECREF(result);
             ldap_msgfree(m);
             ldap_controls_free(serverctrls);
-            return LDAPerror(ld, "LDAPControls_to_List");
+            return LDAPerror(ld);
         }
         ldap_controls_free(serverctrls);
         if (refs) {
@@ -255,7 +255,7 @@ LDAPmessage_to_python(LDAP *ld, LDAPMessage *m, int add_ctrls,
                      0) != LDAP_SUCCESS) {
                     Py_DECREF(result);
                     ldap_msgfree(m);
-                    return LDAPerror(ld, "ldap_parse_intermediate");
+                    return LDAPerror(ld);
                 }
                 /* convert serverctrls to list of tuples */
                 if (!(pyctrls = LDAPControls_to_List(serverctrls))) {
@@ -267,26 +267,41 @@ LDAPmessage_to_python(LDAP *ld, LDAPMessage *m, int add_ctrls,
                     ldap_controls_free(serverctrls);
                     ldap_memfree(retoid);
                     ber_bvfree(retdata);
-                    return LDAPerror(ld, "LDAPControls_to_List");
+                    return LDAPerror(ld);
                 }
                 ldap_controls_free(serverctrls);
 
                 valuestr = LDAPberval_to_object(retdata);
                 ber_bvfree(retdata);
-                pyoid = PyUnicode_FromString(retoid);
-                ldap_memfree(retoid);
-                if (pyoid == NULL) {
+                if (valuestr == NULL) {
+                    ldap_memfree(retoid);
                     Py_DECREF(result);
                     ldap_msgfree(m);
                     return NULL;
                 }
-                valtuple = Py_BuildValue("(OOO)", pyoid,
-                                         valuestr ? valuestr : Py_None,
-                                         pyctrls);
-                Py_DECREF(pyoid);
-                Py_DECREF(valuestr);
-                Py_XDECREF(pyctrls);
-                PyList_Append(result, valtuple);
+
+                pyoid = PyUnicode_FromString(retoid);
+                ldap_memfree(retoid);
+                if (pyoid == NULL) {
+                    Py_DECREF(valuestr);
+                    Py_DECREF(result);
+                    ldap_msgfree(m);
+                    return NULL;
+                }
+
+                valtuple = Py_BuildValue("(NNN)", pyoid, valuestr, pyctrls);
+                if (valtuple == NULL) {
+                    Py_DECREF(result);
+                    ldap_msgfree(m);
+                    return NULL;
+                }
+
+                if (PyList_Append(result, valtuple) == -1) {
+                    Py_DECREF(valtuple);
+                    Py_DECREF(result);
+                    ldap_msgfree(m);
+                    return NULL;
+                }
                 Py_DECREF(valtuple);
             }
         }

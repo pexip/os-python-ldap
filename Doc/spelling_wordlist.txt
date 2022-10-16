@@ -39,6 +39,7 @@ defresult
 dereferenced
 dereferencing
 desc
+dev
 directoryOperation
 distinguished
 distributedOperation
@@ -55,6 +56,7 @@ filterstr
 filterStr
 formatOID
 func
+GPG
 Heimdal
 hostport
 hrefTarget
@@ -103,7 +105,9 @@ previousDN
 processResultsCount
 Proxied
 py
+pytest
 rdn
+readthedocs
 reentrant
 refmodule
 refreshAndPersist
@@ -125,8 +129,10 @@ serverctrls
 sessionSourceIp
 sessionSourceName
 sessionTrackingIdentifier
+slapadd
 sizelimit
 slapd
+startup
 stderr
 stdout
 str
@@ -138,6 +144,7 @@ subtree
 syncrepl
 syntaxes
 timelimit
+TLS
 tracebacks
 tuple
 tuples
@@ -145,6 +152,7 @@ UDP
 Umich
 unparsing
 unsigend
+urandom
 uri
 urlPrefix
 urlscheme

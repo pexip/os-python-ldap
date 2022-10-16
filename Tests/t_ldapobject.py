@@ -1,27 +1,15 @@
-# -*- coding: utf-8 -*-
 """
 Automatic tests for python-ldap's module ldap.ldapobject
 
 See https://www.python-ldap.org/ for details.
 """
-
-from __future__ import unicode_literals
-
-import sys
-
-if sys.version_info[0] <= 2:
-    PY2 = True
-    text_type = unicode
-else:
-    PY2 = False
-    text_type = str
-
+import base64
 import errno
-import contextlib
 import linecache
 import os
+import re
+import socket
 import unittest
-import warnings
 import pickle
 
 # Switch off processing .ldaprc or ldap.conf before importing _ldap
@@ -32,6 +20,12 @@ from ldap.ldapobject import SimpleLDAPObject, ReconnectLDAPObject
 
 from slapdtest import SlapdTestCase
 from slapdtest import requires_ldapi, requires_sasl, requires_tls
+from slapdtest import requires_init_fd
+
+PEM_CERT_RE = re.compile(
+    b'-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----',
+    re.DOTALL
+)
 
 
 LDIF_TEMPLATE = """dn: %(suffix)s
@@ -74,6 +68,25 @@ cn: Foo4
 
 """
 
+SCHEMA_TEMPLATE = """dn: cn=mySchema,cn=schema,cn=config
+objectClass: olcSchemaConfig
+cn: mySchema
+olcAttributeTypes: ( 1.3.6.1.4.1.56207.1.1.1 NAME 'myAttribute'
+    DESC 'fobar attribute'
+    EQUALITY caseExactMatch
+    ORDERING caseExactOrderingMatch
+    SUBSTR caseExactSubstringsMatch
+    SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+    SINGLE-VALUE
+    USAGE userApplications
+    X-ORIGIN 'foobar' )
+olcObjectClasses: ( 1.3.6.1.4.1.56207.1.2.2 NAME 'myClass'
+    DESC 'foobar objectclass'
+    SUP top
+    STRUCTURAL
+    MUST myAttribute
+    X-ORIGIN 'foobar' )"""
+
 
 class Test00_SimpleLDAPObject(SlapdTestCase):
     """
@@ -84,7 +97,7 @@ class Test00_SimpleLDAPObject(SlapdTestCase):
 
     @classmethod
     def setUpClass(cls):
-        super(Test00_SimpleLDAPObject, cls).setUpClass()
+        super().setUpClass()
         # insert some Foo* objects via ldapadd
         cls.server.ldapadd(
             LDIF_TEMPLATE % {
@@ -103,6 +116,17 @@ class Test00_SimpleLDAPObject(SlapdTestCase):
             # open local LDAP connection
             self._ldap_conn = self._open_ldap_conn(bytes_mode=False)
 
+    def tearDown(self):
+        del self._ldap_conn
+
+    def reset_connection(self):
+        try:
+            del self._ldap_conn
+        except AttributeError:
+            pass
+
+        self._ldap_conn = self._open_ldap_conn(bytes_mode=False)
+
     def test_reject_bytes_base(self):
         base = self.server.suffix
         l = self._ldap_conn
@@ -111,44 +135,29 @@ class Test00_SimpleLDAPObject(SlapdTestCase):
             l.search_s(
                 base.encode('utf-8'), ldap.SCOPE_SUBTREE, '(cn=Foo*)', ['*']
             )
-        if PY2:
-            self.assertIn(
-                u"got type 'str' for 'base'", text_type(e.exception)
-            )
-        elif sys.version_info >= (3, 5, 0):
-            # Python 3.4.x does not include 'search_ext()' in message
-            self.assertEqual(
-                "search_ext() argument 1 must be str, not bytes",
-                text_type(e.exception)
-            )
+        # Python 3.4.x does not include 'search_ext()' in message
+        self.assertEqual(
+            "search_ext() argument 1 must be str, not bytes",
+            str(e.exception)
+        )
 
         with self.assertRaises(TypeError) as e:
             l.search_s(
                 base, ldap.SCOPE_SUBTREE, b'(cn=Foo*)', ['*']
             )
-        if PY2:
-            self.assertIn(
-                u"got type 'str' for 'filterstr'", text_type(e.exception)
-            )
-        elif sys.version_info >= (3, 5, 0):
-            self.assertEqual(
-                "search_ext() argument 3 must be str, not bytes",
-                text_type(e.exception)
-            )
+        self.assertEqual(
+            "search_ext() argument 3 must be str, not bytes",
+            str(e.exception)
+        )
 
         with self.assertRaises(TypeError) as e:
             l.search_s(
                 base, ldap.SCOPE_SUBTREE, '(cn=Foo*)', [b'*']
             )
-        if PY2:
-            self.assertIn(
-                u"got type 'str' for 'attrlist'", text_type(e.exception)
-            )
-        elif sys.version_info >= (3, 5, 0):
-            self.assertEqual(
-                ('attrs_from_List(): expected string in list', b'*'),
-                e.exception.args
-            )
+        self.assertEqual(
+            ('attrs_from_List(): expected string in list', b'*'),
+            e.exception.args
+        )
 
     def test_search_keys_are_text(self):
         base = self.server.suffix
@@ -157,142 +166,11 @@ class Test00_SimpleLDAPObject(SlapdTestCase):
         result.sort()
         dn, fields = result[0]
         self.assertEqual(dn, 'cn=Foo1,%s' % base)
-        self.assertEqual(type(dn), text_type)
+        self.assertEqual(type(dn), str)
         for key, values in fields.items():
-            self.assertEqual(type(key), text_type)
+            self.assertEqual(type(key), str)
             for value in values:
                 self.assertEqual(type(value), bytes)
-
-    def _get_bytes_ldapobject(self, explicit=True, **kwargs):
-        if explicit:
-            kwargs.setdefault('bytes_mode', True)
-        else:
-            kwargs = {}
-        return self._open_ldap_conn(
-            who=self.server.root_dn.encode('utf-8'),
-            cred=self.server.root_pw.encode('utf-8'),
-            **kwargs
-        )
-
-    @unittest.skipUnless(PY2, "no bytes_mode under Py3")
-    def test_bytesmode_search_requires_bytes(self):
-        l = self._get_bytes_ldapobject()
-        base = self.server.suffix
-
-        with self.assertRaises(TypeError):
-            l.search_s(base.encode('utf-8'), ldap.SCOPE_SUBTREE, '(cn=Foo*)', [b'*'])
-        with self.assertRaises(TypeError):
-            l.search_s(base.encode('utf-8'), ldap.SCOPE_SUBTREE, b'(cn=Foo*)', ['*'])
-        with self.assertRaises(TypeError):
-            l.search_s(base, ldap.SCOPE_SUBTREE, b'(cn=Foo*)', [b'*'])
-
-    @unittest.skipUnless(PY2, "no bytes_mode under Py3")
-    def test_bytesmode_search_results_have_bytes(self):
-        l = self._get_bytes_ldapobject()
-        base = self.server.suffix
-        result = l.search_s(base.encode('utf-8'), ldap.SCOPE_SUBTREE, b'(cn=Foo*)', [b'*'])
-        result.sort()
-        dn, fields = result[0]
-        self.assertEqual(dn, b'cn=Foo1,%s' % base)
-        self.assertEqual(type(dn), bytes)
-        for key, values in fields.items():
-            self.assertEqual(type(key), bytes)
-            for value in values:
-                self.assertEqual(type(value), bytes)
-
-    @unittest.skipUnless(PY2, "no bytes_mode under Py3")
-    def test_bytesmode_search_defaults(self):
-        l = self._get_bytes_ldapobject()
-        base = 'cn=Foo1,' + self.server.suffix
-        kwargs = dict(
-            base=base.encode('utf-8'),
-            scope=ldap.SCOPE_SUBTREE,
-            # filterstr=b'(objectClass=*)'
-        )
-        expected = [
-            (
-                base,
-                {'cn': [b'Foo1'], 'objectClass': [b'organizationalRole']}
-            ),
-        ]
-
-        result = l.search_s(**kwargs)
-        self.assertEqual(result, expected)
-        result = l.search_st(**kwargs)
-        self.assertEqual(result, expected)
-        result = l.search_ext_s(**kwargs)
-        self.assertEqual(result, expected)
-
-    @unittest.skipUnless(PY2, "no bytes_mode under Py3")
-    def test_unset_bytesmode_search_warns_bytes(self):
-        l = self._get_bytes_ldapobject(explicit=False)
-        base = self.server.suffix
-
-        l.search_s(base.encode('utf-8'), ldap.SCOPE_SUBTREE, '(cn=Foo*)', [b'*'])
-        l.search_s(base.encode('utf-8'), ldap.SCOPE_SUBTREE, b'(cn=Foo*)', ['*'])
-        l.search_s(base, ldap.SCOPE_SUBTREE, b'(cn=Foo*)', [b'*'])
-
-    def _search_wrong_type(self, bytes_mode, strictness):
-        if bytes_mode:
-            l = self._get_bytes_ldapobject(bytes_strictness=strictness)
-        else:
-            l = self._open_ldap_conn(bytes_mode=False,
-                                     bytes_strictness=strictness)
-        base = 'cn=Foo1,' + self.server.suffix
-        if not bytes_mode:
-            base = base.encode('utf-8')
-        result = l.search_s(base, scope=ldap.SCOPE_SUBTREE)
-        return result[0][-1]['cn']
-
-    @unittest.skipUnless(PY2, "no bytes_mode under Py3")
-    def test_bytesmode_silent(self):
-        with warnings.catch_warnings(record=True) as w:
-            warnings.resetwarnings()
-            warnings.simplefilter('always', ldap.LDAPBytesWarning)
-            self._search_wrong_type(bytes_mode=True, strictness='silent')
-        self.assertEqual(w, [])
-
-    @unittest.skipUnless(PY2, "no bytes_mode under Py3")
-    def test_bytesmode_warn(self):
-        with warnings.catch_warnings(record=True) as w:
-            warnings.resetwarnings()
-            warnings.simplefilter('always', ldap.LDAPBytesWarning)
-            self._search_wrong_type(bytes_mode=True, strictness='warn')
-        self.assertEqual(len(w), 1)
-
-    @unittest.skipUnless(PY2, "no bytes_mode under Py3")
-    def test_bytesmode_error(self):
-        with warnings.catch_warnings(record=True) as w:
-            warnings.resetwarnings()
-            warnings.simplefilter('always', ldap.LDAPBytesWarning)
-            with self.assertRaises(TypeError):
-                self._search_wrong_type(bytes_mode=True, strictness='error')
-        self.assertEqual(w, [])
-
-    @unittest.skipUnless(PY2, "no bytes_mode under Py3")
-    def test_textmode_silent(self):
-        with warnings.catch_warnings(record=True) as w:
-            warnings.resetwarnings()
-            warnings.simplefilter('always', ldap.LDAPBytesWarning)
-            self._search_wrong_type(bytes_mode=True, strictness='silent')
-        self.assertEqual(w, [])
-
-    @unittest.skipUnless(PY2, "no bytes_mode under Py3")
-    def test_textmode_warn(self):
-        with warnings.catch_warnings(record=True) as w:
-            warnings.resetwarnings()
-            warnings.simplefilter('always', ldap.LDAPBytesWarning)
-            self._search_wrong_type(bytes_mode=True, strictness='warn')
-        self.assertEqual(len(w), 1)
-
-    @unittest.skipUnless(PY2, "no bytes_mode under Py3")
-    def test_textmode_error(self):
-        with warnings.catch_warnings(record=True) as w:
-            warnings.resetwarnings()
-            warnings.simplefilter('always', ldap.LDAPBytesWarning)
-            with self.assertRaises(TypeError):
-                self._search_wrong_type(bytes_mode=True, strictness='error')
-        self.assertEqual(w, [])
 
     def test_search_accepts_unicode_dn(self):
         base = self.server.suffix
@@ -315,7 +193,7 @@ class Test00_SimpleLDAPObject(SlapdTestCase):
         result.sort()
 
         for dn, attrs in result:
-            self.assertIsInstance(dn, text_type)
+            self.assertIsInstance(dn, str)
             self.assertEqual(attrs, {})
 
     def test001_search_subtree(self):
@@ -418,37 +296,18 @@ class Test00_SimpleLDAPObject(SlapdTestCase):
     def test_search_subschema(self):
         l = self._ldap_conn
         dn = l.search_subschemasubentry_s()
-        self.assertIsInstance(dn, text_type)
+        self.assertIsInstance(dn, str)
         self.assertEqual(dn, "cn=Subschema")
         subschema = l.read_subschemasubentry_s(dn)
         self.assertIsInstance(subschema, dict)
         self.assertEqual(
             sorted(subschema),
             [
-                u'attributeTypes',
-                u'ldapSyntaxes',
-                u'matchingRuleUse',
-                u'matchingRules',
-                u'objectClasses'
-            ]
-        )
-
-    @unittest.skipUnless(PY2, "no bytes_mode under Py3")
-    def test_search_subschema_have_bytes(self):
-        l = self._get_bytes_ldapobject()
-        dn = l.search_subschemasubentry_s()
-        self.assertIsInstance(dn, bytes)
-        self.assertEqual(dn, b"cn=Subschema")
-        subschema = l.read_subschemasubentry_s(dn)
-        self.assertIsInstance(subschema, dict)
-        self.assertEqual(
-            sorted(subschema),
-            [
-                b'attributeTypes',
-                b'ldapSyntaxes',
-                b'matchingRuleUse',
-                b'matchingRules',
-                b'objectClasses'
+                'attributeTypes',
+                'ldapSyntaxes',
+                'matchingRuleUse',
+                'matchingRules',
+                'objectClasses'
             ]
         )
 
@@ -465,7 +324,7 @@ class Test00_SimpleLDAPObject(SlapdTestCase):
             info = ldap_err.args[0]['info']
             expected_info = os.strerror(errno.ENOTCONN)
             if info != expected_info:
-                self.fail("expected info=%r, got %d" % (expected_info, info))
+                self.fail(f"expected info={expected_info!r}, got {info!r}")
         else:
             self.fail("expected SERVER_DOWN, got %r" % r)
 
@@ -482,7 +341,7 @@ class Test00_SimpleLDAPObject(SlapdTestCase):
 
     @requires_sasl()
     @requires_ldapi()
-    def test006_sasl_extenal_bind_s(self):
+    def test006_sasl_external_bind_s(self):
         l = self.ldap_object_class(self.server.ldapi_uri)
         l.sasl_external_bind_s()
         self.assertEqual(l.whoami_s(), 'dn:'+self.server.root_dn.lower())
@@ -490,6 +349,30 @@ class Test00_SimpleLDAPObject(SlapdTestCase):
         l = self.ldap_object_class(self.server.ldapi_uri)
         l.sasl_external_bind_s(authz_id=authz_id)
         self.assertEqual(l.whoami_s(), authz_id.lower())
+
+    @requires_sasl()
+    @requires_ldapi()
+    def test006_sasl_options(self):
+        l = self.ldap_object_class(self.server.ldapi_uri)
+
+        minssf = l.get_option(ldap.OPT_X_SASL_SSF_MIN)
+        self.assertGreaterEqual(minssf, 0)
+        self.assertLessEqual(minssf, 256)
+        maxssf = l.get_option(ldap.OPT_X_SASL_SSF_MAX)
+        self.assertGreaterEqual(maxssf, 0)
+        # libldap sets SSF_MAX to INT_MAX
+        self.assertLessEqual(maxssf, 2**31 - 1)
+
+        l.set_option(ldap.OPT_X_SASL_SSF_MIN, 56)
+        l.set_option(ldap.OPT_X_SASL_SSF_MAX, 256)
+        self.assertEqual(l.get_option(ldap.OPT_X_SASL_SSF_MIN), 56)
+        self.assertEqual(l.get_option(ldap.OPT_X_SASL_SSF_MAX), 256)
+
+        l.sasl_external_bind_s()
+        with self.assertRaisesRegex(ValueError, "write-only option"):
+            l.get_option(ldap.OPT_X_SASL_SSF_EXTERNAL)
+        l.set_option(ldap.OPT_X_SASL_SSF_EXTERNAL, 256)
+        self.assertEqual(l.whoami_s(), 'dn:' + self.server.root_dn.lower())
 
     def test007_timeout(self):
         l = self.ldap_object_class(self.server.ldap_uri)
@@ -507,50 +390,14 @@ class Test00_SimpleLDAPObject(SlapdTestCase):
     def test_simple_bind_noarg(self):
         l = self.ldap_object_class(self.server.ldap_uri)
         l.simple_bind_s()
-        self.assertEqual(l.whoami_s(), u'')
+        self.assertEqual(l.whoami_s(), '')
         l = self.ldap_object_class(self.server.ldap_uri)
         l.simple_bind_s(None, None)
-        self.assertEqual(l.whoami_s(), u'')
-
-    @unittest.skipUnless(PY2, "no bytes_mode under Py3")
-    def test_ldapbyteswarning(self):
-        self.assertIsSubclass(ldap.LDAPBytesWarning, BytesWarning)
-        self.assertIsSubclass(ldap.LDAPBytesWarning, Warning)
-        self.assertIsInstance(self.server.suffix, text_type)
-        with warnings.catch_warnings(record=True) as w:
-            warnings.resetwarnings()
-            warnings.simplefilter('always', ldap.LDAPBytesWarning)
-            conn = self._get_bytes_ldapobject(explicit=False)
-            result = conn.search_s(
-                self.server.suffix,
-                ldap.SCOPE_SUBTREE,
-                b'(cn=Foo*)',
-                attrlist=[b'*'],
-            )
-            self.assertEqual(len(result), 4)
-
-        # ReconnectLDAP only emits one warning
-        self.assertGreaterEqual(len(w), 1, w)
-        msg = w[-1]
-        self.assertIs(msg.category, ldap.LDAPBytesWarning)
-        self.assertEqual(
-            text_type(msg.message),
-            "Received non-bytes value for 'base' in bytes "
-            "mode; please choose an explicit option for bytes_mode on your "
-            "LDAP connection"
-        )
-
-    @contextlib.contextmanager
-    def catch_byteswarnings(self, *args, **kwargs):
-        with warnings.catch_warnings(record=True) as w:
-            conn = self._get_bytes_ldapobject(*args, **kwargs)
-            warnings.resetwarnings()
-            warnings.simplefilter('always', ldap.LDAPBytesWarning)
-            yield conn, w
+        self.assertEqual(l.whoami_s(), '')
 
     def _check_byteswarning(self, warning, expected_message):
         self.assertIs(warning.category, ldap.LDAPBytesWarning)
-        self.assertIn(expected_message, text_type(warning.message))
+        self.assertIn(expected_message, str(warning.message))
 
         def _normalize(filename):
             # Python 2 likes to report the ".pyc" file in warnings,
@@ -567,44 +414,6 @@ class Test00_SimpleLDAPObject(SlapdTestCase):
             linecache.getline(warning.filename, warning.lineno)
         )
 
-    def _test_byteswarning_level_search(self, methodname):
-        with self.catch_byteswarnings(explicit=False) as (conn, w):
-            method = getattr(conn, methodname)
-            result = method(
-                self.server.suffix.encode('utf-8'),
-                ldap.SCOPE_SUBTREE,
-                '(cn=Foo*)',
-                attrlist=['*'],  # CORRECT LINE
-            )
-            self.assertEqual(len(result), 4)
-
-        self.assertEqual(len(w), 2, w)
-
-        self._check_byteswarning(
-            w[0], u"Received non-bytes value for 'filterstr'")
-
-        self._check_byteswarning(
-            w[1], u"Received non-bytes value for 'attrlist'")
-
-    @unittest.skipUnless(PY2, "no bytes_mode under Py3")
-    def test_byteswarning_level_search(self):
-        self._test_byteswarning_level_search('search_s')
-        self._test_byteswarning_level_search('search_st')
-        self._test_byteswarning_level_search('search_ext_s')
-
-    @unittest.skipUnless(PY2, "no bytes_mode under Py3")
-    def test_byteswarning_initialize(self):
-        with warnings.catch_warnings(record=True) as w:
-            warnings.resetwarnings()
-            warnings.simplefilter('always', ldap.LDAPBytesWarning)
-            bytes_uri = self.server.ldap_uri.decode('utf-8')
-            self.ldap_object_class(bytes_uri)  # CORRECT LINE
-
-        self.assertEqual(len(w), 1, w)
-
-        self._check_byteswarning(
-            w[0], u"Under Python 2, python-ldap uses bytes by default.")
-
     @requires_tls()
     def test_multiple_starttls(self):
         # Test for openldap does not re-register nss shutdown callbacks
@@ -619,33 +428,49 @@ class Test00_SimpleLDAPObject(SlapdTestCase):
             l.simple_bind_s(self.server.root_dn, self.server.root_pw)
             self.assertEqual(l.whoami_s(), 'dn:' + self.server.root_dn)
 
+    @requires_tls()
+    @unittest.skipUnless(
+        hasattr(ldap, "OPT_X_TLS_PEERCERT"),
+        reason="Requires OPT_X_TLS_PEERCERT"
+    )
+    def test_get_tls_peercert(self):
+        l = self.ldap_object_class(self.server.ldap_uri)
+        peercert = l.get_option(ldap.OPT_X_TLS_PEERCERT)
+        self.assertEqual(peercert, None)
+        with self.assertRaises(ValueError):
+            l.set_option(ldap.OPT_X_TLS_PEERCERT, b"")
+
+        l.set_option(ldap.OPT_X_TLS_CACERTFILE, self.server.cafile)
+        l.set_option(ldap.OPT_X_TLS_NEWCTX, 0)
+        l.start_tls_s()
+
+        peercert = l.get_option(ldap.OPT_X_TLS_PEERCERT)
+        self.assertTrue(peercert)
+        self.assertIsInstance(peercert, bytes)
+
+        with open(self.server.servercert, "rb") as f:
+            server_cert = f.read()
+        pem_body = PEM_CERT_RE.search(server_cert).group(1)
+        server_der = base64.b64decode(pem_body)
+
+        self.assertEqual(server_der, peercert)
+
     def test_dse(self):
         dse = self._ldap_conn.read_rootdse_s()
         self.assertIsInstance(dse, dict)
-        self.assertEqual(dse[u'supportedLDAPVersion'], [b'3'])
+        self.assertEqual(dse['supportedLDAPVersion'], [b'3'])
         keys = set(dse)
         # SASL info may be missing in restricted build environments
-        keys.discard(u'supportedSASLMechanisms')
+        keys.discard('supportedSASLMechanisms')
         self.assertEqual(
             keys,
-            {u'configContext', u'entryDN', u'namingContexts', u'objectClass',
-             u'structuralObjectClass', u'subschemaSubentry',
-             u'supportedControl', u'supportedExtension', u'supportedFeatures',
-             u'supportedLDAPVersion'}
+            {'configContext', 'entryDN', 'namingContexts', 'objectClass',
+             'structuralObjectClass', 'subschemaSubentry',
+             'supportedControl', 'supportedExtension', 'supportedFeatures',
+             'supportedLDAPVersion'}
         )
         self.assertEqual(
             self._ldap_conn.get_naming_contexts(),
-            [self.server.suffix.encode('utf-8')]
-        )
-
-    @unittest.skipUnless(PY2, "no bytes_mode under Py3")
-    def test_dse_bytes(self):
-        l = self._get_bytes_ldapobject()
-        dse = l.read_rootdse_s()
-        self.assertIsInstance(dse, dict)
-        self.assertEqual(dse[u'supportedLDAPVersion'], [b'3'])
-        self.assertEqual(
-            l.get_naming_contexts(),
             [self.server.suffix.encode('utf-8')]
         )
 
@@ -660,6 +485,85 @@ class Test00_SimpleLDAPObject(SlapdTestCase):
         l = self._ldap_conn
         result = l.compare_s('cn=Foo1,%s' % base, 'cn', b'Foo2')
         self.assertIs(result, False)
+
+    def test_compare_s_notfound(self):
+        base = self.server.suffix
+        l = self._ldap_conn
+        with self.assertRaises(ldap.NO_SUCH_OBJECT):
+            result = l.compare_s('cn=invalid,%s' % base, 'cn', b'Foo2')
+
+    def test_compare_s_invalidattr(self):
+        base = self.server.suffix
+        l = self._ldap_conn
+        with self.assertRaises(ldap.UNDEFINED_TYPE):
+            result = l.compare_s('cn=Foo1,%s' % base, 'invalidattr', b'invalid')
+
+    def test_compare_true_exception_contains_message_id(self):
+        base = self.server.suffix
+        l = self._ldap_conn
+        msgid = l.compare('cn=Foo1,%s' % base, 'cn', b'Foo1')
+        with self.assertRaises(ldap.COMPARE_TRUE) as cm:
+            l.result()
+        self.assertEqual(cm.exception.args[0]["msgid"], msgid)
+
+    def test_async_search_no_such_object_exception_contains_message_id(self):
+        msgid = self._ldap_conn.search("CN=XXX", ldap.SCOPE_SUBTREE)
+        with self.assertRaises(ldap.NO_SUCH_OBJECT) as cm:
+            self._ldap_conn.result()
+        self.assertEqual(cm.exception.args[0]["msgid"], msgid)
+
+    def test_passwd_s(self):
+        l = self._ldap_conn
+
+        # first, create a user to change password on
+        dn = "cn=PasswordTest," + self.server.suffix
+        result, pmsg, msgid, ctrls = l.add_ext_s(
+            dn,
+            [
+                ('objectClass', b'person'),
+                ('sn', b'PasswordTest'),
+                ('cn', b'PasswordTest'),
+                ('userPassword', b'initial'),
+            ]
+        )
+        self.assertEqual(result, ldap.RES_ADD)
+        self.assertIsInstance(msgid, int)
+        self.assertEqual(pmsg, [])
+        self.assertEqual(ctrls, [])
+
+        # try changing password with a wrong old-pw
+        with self.assertRaises(ldap.UNWILLING_TO_PERFORM):
+            l.passwd_s(dn, "bogus", "ignored")
+
+        # have the server generate a new random pw
+        respoid, respvalue = l.passwd_s(dn, "initial", None, extract_newpw=True)
+        self.assertEqual(respoid, None)
+
+        password = respvalue.genPasswd
+        self.assertIsInstance(password, bytes)
+
+        # try changing password back
+        respoid, respvalue = l.passwd_s(dn, password, "initial")
+        self.assertEqual(respoid, None)
+        self.assertEqual(respvalue, None)
+
+        l.delete_s(dn)
+
+    def test_slapadd(self):
+        with self.assertRaises(ldap.INVALID_DN_SYNTAX):
+            self._ldap_conn.add_s("myAttribute=foobar,ou=Container,%s" % self.server.suffix, [
+                ("objectClass", b'myClass'),
+                ("myAttribute", b'foobar'),
+            ])
+
+        self.server.slapadd(SCHEMA_TEMPLATE, ["-n0"])
+        self.server.restart()
+        self.reset_connection()
+
+        self._ldap_conn.add_s("myAttribute=foobar,ou=Container,%s" % self.server.suffix, [
+            ("objectClass", b'myClass'),
+            ("myAttribute", b'foobar'),
+        ])
 
 
 class Test01_ReconnectLDAPObject(Test00_SimpleLDAPObject):
@@ -695,22 +599,20 @@ class Test01_ReconnectLDAPObject(Test00_SimpleLDAPObject):
         self.assertEqual(
             l1.__getstate__(),
             {
-                str('_last_bind'): (
+                '_last_bind': (
                     'simple_bind_s',
                     (bind_dn, 'user1_pw'),
                     {}
                 ),
-                str('_options'): [(17, 3)],
-                str('_reconnects_done'): 0,
-                str('_retry_delay'): 60.0,
-                str('_retry_max'): 1,
-                str('_start_tls'): 0,
-                str('_trace_level'): ldap._trace_level,
-                str('_trace_stack_limit'): 5,
-                str('_uri'): self.server.ldap_uri,
-                str('bytes_mode'): l1.bytes_mode,
-                str('bytes_strictness'): l1.bytes_strictness,
-                str('timeout'): -1,
+                '_options': [(17, 3)],
+                '_reconnects_done': 0,
+                '_retry_delay': 60.0,
+                '_retry_max': 1,
+                '_start_tls': 0,
+                '_trace_level': ldap._trace_level,
+                '_trace_stack_limit': 5,
+                '_uri': self.server.ldap_uri,
+                'timeout': -1,
             },
         )
 
@@ -723,6 +625,46 @@ class Test01_ReconnectLDAPObject(Test00_SimpleLDAPObject):
         del l1
         l2 = pickle.loads(l1_state)
         self.assertEqual(l2.whoami_s(), 'dn:'+bind_dn)
+
+    def test105_reconnect_restore(self):
+        l1 = self.ldap_object_class(self.server.ldap_uri, retry_max=2, retry_delay=1)
+        bind_dn = 'cn=user1,'+self.server.suffix
+        l1.simple_bind_s(bind_dn, 'user1_pw')
+        self.assertEqual(l1.whoami_s(), 'dn:'+bind_dn)
+        self.server._proc.terminate()
+        self.server.wait()
+        try:
+            l1.whoami_s()
+        except ldap.SERVER_DOWN:
+            pass
+        else:
+            self.assertEqual(True, False)
+        finally:
+            self.server._start_slapd()
+        self.assertEqual(l1.whoami_s(), 'dn:'+bind_dn)
+
+
+@requires_init_fd()
+class Test03_SimpleLDAPObjectWithFileno(Test00_SimpleLDAPObject):
+    def _open_ldap_conn(self, who=None, cred=None, **kwargs):
+        if hasattr(self, '_sock'):
+            raise RuntimeError("socket already connected")
+        self._sock = socket.create_connection(
+            (self.server.hostname, self.server.port)
+        )
+        return super()._open_ldap_conn(
+            who=who, cred=cred, fileno=self._sock.fileno(), **kwargs
+        )
+
+    def tearDown(self):
+        self._sock.close()
+        delattr(self, '_sock')
+        super().tearDown()
+
+    def reset_connection(self):
+        self._sock.close()
+        delattr(self, '_sock')
+        super(Test03_SimpleLDAPObjectWithFileno, self).reset_connection()
 
 
 if __name__ == '__main__':

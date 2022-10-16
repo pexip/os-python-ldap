@@ -13,16 +13,15 @@ The information serves two purposes:
 # This module cannot import anything from ldap.
 # When building documentation, it is used to initialize ldap.__init__.
 
-from __future__ import print_function
 
-class Constant(object):
+class Constant:
     """Base class for a definition of an OpenLDAP constant
     """
 
     def __init__(self, name, optional=False, requirements=(), doc=None):
         self.name = name
         if optional:
-            self_requirement = 'defined(LDAP_{})'.format(self.name)
+            self_requirement = f'defined(LDAP_{self.name})'
             requirements = list(requirements) + [self_requirement]
         self.requirements = requirements
         self.doc = self.__doc__ = doc
@@ -50,7 +49,7 @@ class TLSInt(Int):
     def __init__(self, *args, **kwargs):
         requrements = list(kwargs.get('requirements', ()))
         kwargs['requirements'] = ['HAVE_TLS'] + requrements
-        super(TLSInt, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
 
 class Feature(Constant):
@@ -70,7 +69,7 @@ class Feature(Constant):
 
 
     def __init__(self, name, c_feature, **kwargs):
-        super(Feature, self).__init__(name, **kwargs)
+        super().__init__(name, **kwargs)
         self.c_feature = c_feature
 
 
@@ -245,6 +244,7 @@ CONSTANTS = (
     Int('OPT_SIZELIMIT'),
     Int('OPT_TIMELIMIT'),
     Int('OPT_REFERRALS', optional=True),
+    Int('OPT_RESULT_CODE'),
     Int('OPT_ERROR_NUMBER'),
     Int('OPT_RESTART'),
     Int('OPT_PROTOCOL_VERSION'),
@@ -262,6 +262,7 @@ CONSTANTS = (
     Int('OPT_TIMEOUT'),
     Int('OPT_REFHOPLIMIT'),
     Int('OPT_NETWORK_TIMEOUT'),
+    Int('OPT_TCP_USER_TIMEOUT', optional=True),
     Int('OPT_URI'),
 
     Int('OPT_DEFBASE', optional=True),
@@ -281,7 +282,6 @@ CONSTANTS = (
     TLSInt('OPT_X_TLS_DEMAND'),
     TLSInt('OPT_X_TLS_ALLOW'),
     TLSInt('OPT_X_TLS_TRY'),
-    TLSInt('OPT_X_TLS_PEERCERT', optional=True),
 
     TLSInt('OPT_X_TLS_VERSION', optional=True),
     TLSInt('OPT_X_TLS_CIPHER', optional=True),
@@ -299,6 +299,20 @@ CONSTANTS = (
     TLSInt('OPT_X_TLS_NEWCTX', optional=True),
     TLSInt('OPT_X_TLS_PROTOCOL_MIN', optional=True),
     TLSInt('OPT_X_TLS_PACKAGE', optional=True),
+
+    # Added in OpenLDAP 2.4.52
+    TLSInt('OPT_X_TLS_ECNAME', optional=True),
+    TLSInt('OPT_X_TLS_REQUIRE_SAN', optional=True),
+
+    # Added in OpenLDAP 2.5
+    TLSInt('OPT_X_TLS_PEERCERT', optional=True),
+    TLSInt('OPT_X_TLS_PROTOCOL_MAX', optional=True),
+
+    TLSInt('OPT_X_TLS_PROTOCOL_SSL3', optional=True),
+    TLSInt('OPT_X_TLS_PROTOCOL_TLS1_0', optional=True),
+    TLSInt('OPT_X_TLS_PROTOCOL_TLS1_1', optional=True),
+    TLSInt('OPT_X_TLS_PROTOCOL_TLS1_2', optional=True),
+    TLSInt('OPT_X_TLS_PROTOCOL_TLS1_3', optional=True),
 
     Int('OPT_X_SASL_MECH'),
     Int('OPT_X_SASL_REALM'),
@@ -340,11 +354,10 @@ CONSTANTS = (
     # XXX - these should be errors
     Int('URL_ERR_BADSCOPE'),
     Int('URL_ERR_MEM'),
-    # Int('LIBLDAP_R'),
 
-    Feature('LIBLDAP_R', 'HAVE_LIBLDAP_R'),
     Feature('SASL_AVAIL', 'HAVE_SASL'),
     Feature('TLS_AVAIL', 'HAVE_TLS'),
+    Feature('INIT_FD_AVAIL', 'HAVE_LDAP_INIT_FD'),
 
     Str("CONTROL_MANAGEDSAIT"),
     Str("CONTROL_PROXY_AUTHZ"),
@@ -392,7 +405,7 @@ def print_header():  # pragma: no cover
             if requirement not in current_requirements:
                 current_requirements.append(requirement)
                 print()
-                print('#if {}'.format(requirement))
+                print(f'#if {requirement}')
 
         print(definition.c_template.format(self=definition))
 

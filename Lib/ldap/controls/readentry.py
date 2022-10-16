@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ldap.controls.readentry - classes for the Read Entry controls
 (see RFC 4527)
@@ -43,7 +42,7 @@ class ReadEntryControl(LDAPControl):
     self.dn = str(decodedEntry[0])
     self.entry = {}
     for attr in decodedEntry[1]:
-      self.entry[str(attr[0])] = [ str(attr_value) for attr_value in attr[1] ]
+      self.entry[str(attr[0])] = [ bytes(attr_value) for attr_value in attr[1] ]
 
 
 class PreReadControl(ReadEntryControl):

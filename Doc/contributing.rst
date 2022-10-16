@@ -108,7 +108,7 @@ Notable targets are:
     Note that no backups are made – please commit any other changes before
     using this target.
 
-    Requires the ``indent`` program and the ``autopep8`` Python module.
+    Requires the ``indent`` program and the ``black`` Python module.
 
 .. _PEP 7: https://www.python.org/dev/peps/pep-0007/
 .. _PEP 8: https://www.python.org/dev/peps/pep-0008/
@@ -218,13 +218,18 @@ If you are tasked with releasing python-ldap, remember to:
 * Go through all changes since last version, and add them to ``CHANGES``.
 * Run :ref:`additional tests` as appropriate, fix any regressions.
 * Change the release date in ``CHANGES``.
+* Update ``__version__`` tags where appropriate (each module ``ldap``,
+  ``ldif``, ``ldapurl``, ``slapdtest`` has its own copy).
 * Merge all that (using pull requests).
 * Run ``python setup.py sdist``, and smoke-test the resulting package
   (install in a clean virtual environment, import ``ldap``).
-* Create Git tag ``python-ldap-{version}``, and push it to GitHub and Pagure.
+* Create GPG-signed Git tag: ``git tag -s python-ldap-{version}``.
+  Push it to GitHub and Pagure.
 * Release the ``sdist`` on PyPI.
 * Announce the release on the mailing list.
   Mention the Git hash.
 * Add the release's log from ``CHANGES`` on the `GitHub release page`_.
+* Check that python-ldap.org shows the latest version; if not, adjust
+  things at readthedocs.org
 
 .. _GitHub release page: https://github.com/python-ldap/python-ldap/releases

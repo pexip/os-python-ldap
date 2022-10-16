@@ -4,14 +4,13 @@
 #define __h_constants_
 
 #include "common.h"
-#include "lber.h"
-#include "ldap.h"
 
 extern int LDAPinit_constants(PyObject *m);
 extern PyObject *LDAPconstant(int);
 
 extern PyObject *LDAPexception_class;
-extern PyObject *LDAPerror(LDAP *, char *msg);
+extern PyObject *LDAPerror(LDAP *);
+extern PyObject *LDAPraise_for_message(LDAP *, LDAPMessage *m);
 PyObject *LDAPerr(int errnum);
 
 #ifndef LDAP_CONTROL_PAGE_OID

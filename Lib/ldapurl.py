@@ -4,7 +4,7 @@ ldapurl - handling of LDAP URLs as described in RFC 4516
 See https://www.python-ldap.org/ for details.
 """
 
-__version__ = '3.2.0'
+__version__ = '3.4.3'
 
 __all__ = [
   # constants
@@ -16,7 +16,8 @@ __all__ = [
   'LDAPUrlExtension','LDAPUrlExtensions','LDAPUrl'
 ]
 
-from ldap.compat import UserDict, quote, unquote
+from collections.abc import MutableMapping
+from urllib.parse import quote, unquote
 
 LDAP_SCOPE_BASE = 0
 LDAP_SCOPE_ONELEVEL = 1
@@ -47,21 +48,16 @@ TupleType=type(())
 
 
 def isLDAPUrl(s):
+  """Returns True if s is a LDAP URL, else False
   """
-  Returns 1 if s is a LDAP URL, 0 else
-  """
-  s_lower = s.lower()
-  return \
-    s_lower.startswith('ldap://') or \
-    s_lower.startswith('ldaps://') or \
-    s_lower.startswith('ldapi://')
+  return s.lower().startswith(('ldap://', 'ldaps://', 'ldapi://'))
 
 
 def ldapUrlEscape(s):
   """Returns URL encoding of string s"""
   return quote(s).replace(',','%2C').replace('/','%2F')
 
-class LDAPUrlExtension(object):
+class LDAPUrlExtension:
   """
   Class for parsing and unparsing LDAP URL extensions
   as described in RFC 4516.
@@ -102,9 +98,9 @@ class LDAPUrlExtension(object):
 
   def unparse(self):
     if self.exvalue is None:
-      return '%s%s' % ('!'*(self.critical>0),self.extype)
+      return '{}{}'.format('!'*(self.critical>0),self.extype)
     else:
-      return '%s%s=%s' % (
+      return '{}{}={}'.format(
         '!'*(self.critical>0),
         self.extype,quote(self.exvalue or '')
       )
@@ -113,7 +109,7 @@ class LDAPUrlExtension(object):
     return self.unparse()
 
   def __repr__(self):
-    return '<%s.%s instance at %s: %s>' % (
+    return '<{}.{} instance at {}: {}>'.format(
       self.__class__.__module__,
       self.__class__.__name__,
       hex(id(self)),
@@ -130,61 +126,74 @@ class LDAPUrlExtension(object):
     return not self.__eq__(other)
 
 
-class LDAPUrlExtensions(UserDict):
-  """
-  Models a collection of LDAP URL extensions as
-  dictionary type
-  """
-
-  def __init__(self,default=None):
-    UserDict.__init__(self)
-    for k,v in (default or {}).items():
-      self[k]=v
-
-  def __setitem__(self,name,value):
+class LDAPUrlExtensions(MutableMapping):
     """
-    value
-        Either LDAPUrlExtension instance, (critical,exvalue)
-        or string'ed exvalue
+    Models a collection of LDAP URL extensions as
+    a mapping type
     """
-    assert isinstance(value,LDAPUrlExtension)
-    assert name==value.extype
-    self.data[name] = value
+    __slots__ = ('_data', )
 
-  def values(self):
-    return [
-      self[k]
-      for k in self.keys()
-    ]
+    def __init__(self, default=None):
+        self._data = {}
+        if default is not None:
+            self.update(default)
 
-  def __str__(self):
-    return ','.join(str(v) for v in self.values())
+    def __setitem__(self, name, value):
+        """Store an extension
 
-  def __repr__(self):
-    return '<%s.%s instance at %s: %s>' % (
-      self.__class__.__module__,
-      self.__class__.__name__,
-      hex(id(self)),
-      self.data
-    )
+        name
+            string
+        value
+            LDAPUrlExtension instance, whose extype nust match `name`
+        """
+        if not isinstance(value, LDAPUrlExtension):
+            raise TypeError("value must be LDAPUrlExtension, not "
+                            + type(value).__name__)
+        if name != value.extype:
+            raise ValueError(
+                "key {!r} does not match extension type {!r}".format(
+                    name, value.extype))
+        self._data[name] = value
 
-  def __eq__(self,other):
-    assert isinstance(other,self.__class__),TypeError(
-      "other has to be instance of %s" % (self.__class__)
-    )
-    return self.data==other.data
+    def __getitem__(self, name):
+        return self._data[name]
 
-  def parse(self,extListStr):
-    for extension_str in extListStr.strip().split(','):
-      if extension_str:
-        e = LDAPUrlExtension(extension_str)
-        self[e.extype] = e
+    def __delitem__(self, name):
+        del self._data[name]
 
-  def unparse(self):
-    return ','.join([ v.unparse() for v in self.values() ])
+    def __iter__(self):
+        return iter(self._data)
+
+    def __len__(self):
+        return len(self._data)
+
+    def __str__(self):
+        return ','.join(str(v) for v in self.values())
+
+    def __repr__(self):
+        return '<{}.{} instance at {}: {}>'.format(
+            self.__class__.__module__,
+            self.__class__.__name__,
+            hex(id(self)),
+            self._data
+        )
+
+    def __eq__(self,other):
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        return self._data == other._data
+
+    def parse(self,extListStr):
+        for extension_str in extListStr.strip().split(','):
+            if extension_str:
+                e = LDAPUrlExtension(extension_str)
+                self[e.extype] = e
+
+    def unparse(self):
+        return ','.join(v.unparse() for v in self.values())
 
 
-class LDAPUrl(object):
+class LDAPUrl:
   """
   Class for parsing and unparsing LDAP URLs
   as described in RFC 4516.
@@ -221,7 +230,7 @@ class LDAPUrl(object):
     extensions=None,
     who=None,cred=None
   ):
-    self.urlscheme=urlscheme
+    self.urlscheme=urlscheme.lower()
     self.hostport=hostport
     self.dn=dn
     self.attrs=attrs
@@ -256,9 +265,7 @@ class LDAPUrl(object):
     if not isLDAPUrl(ldap_url):
       raise ValueError('Value %s for ldap_url does not seem to be a LDAP URL.' % (repr(ldap_url)))
     scheme,rest = ldap_url.split('://',1)
-    self.urlscheme = scheme.strip()
-    if not self.urlscheme in ['ldap','ldaps','ldapi']:
-      raise ValueError('LDAP URL contains unsupported URL scheme %s.' % (self.urlscheme))
+    self.urlscheme = scheme.lower()
     slash_pos = rest.find('/')
     qemark_pos = rest.find('?')
     if (slash_pos==-1) and (qemark_pos==-1):
@@ -326,7 +333,7 @@ class LDAPUrl(object):
       hostport = ldapUrlEscape(self.hostport)
     else:
       hostport = self.hostport
-    return '%s://%s' % (self.urlscheme,hostport)
+    return f'{self.urlscheme}://{hostport}'
 
   def unparse(self):
     """
@@ -347,7 +354,7 @@ class LDAPUrl(object):
       hostport = ldapUrlEscape(self.hostport)
     else:
       hostport = self.hostport
-    ldap_url = '%s://%s/%s?%s?%s?%s' % (
+    ldap_url = '{}://{}/{}?{}?{}?{}'.format(
       self.urlscheme,
       hostport,dn,attrs_str,scope_str,filterstr
     )
@@ -366,24 +373,30 @@ class LDAPUrl(object):
     hrefTarget
         string added as link target attribute
     """
-    assert type(urlPrefix)==StringType, "urlPrefix must be StringType"
+    if not isinstance(urlPrefix, str):
+        raise TypeError("urlPrefix must be str, not "
+                        + type(urlPrefix).__name__)
     if hrefText is None:
-      hrefText = self.unparse()
-    assert type(hrefText)==StringType, "hrefText must be StringType"
+        hrefText = self.unparse()
+    if not isinstance(hrefText, str):
+        raise TypeError("hrefText must be str, not "
+                        + type(hrefText).__name__)
     if hrefTarget is None:
-      target = ''
+        target = ''
     else:
-      assert type(hrefTarget)==StringType, "hrefTarget must be StringType"
-      target = ' target="%s"' % hrefTarget
-    return '<a%s href="%s%s">%s</a>' % (
-      target,urlPrefix,self.unparse(),hrefText
+        if not isinstance(hrefTarget, str):
+            raise TypeError("hrefTarget must be str, not "
+                            + type(hrefTarget).__name__)
+        target = ' target="%s"' % hrefTarget
+    return '<a{} href="{}{}">{}</a>'.format(
+        target, urlPrefix, self.unparse(), hrefText
     )
 
   def __str__(self):
     return self.unparse()
 
   def __repr__(self):
-    return '<%s.%s instance at %s: %s>' % (
+    return '<{}.{} instance at {}: {}>'.format(
       self.__class__.__module__,
       self.__class__.__name__,
       hex(id(self)),
@@ -400,7 +413,7 @@ class LDAPUrl(object):
       else:
         return None
     else:
-      raise AttributeError('%s has no attribute %s' % (
+      raise AttributeError('{} has no attribute {}'.format(
         self.__class__.__name__,name
       ))
     return result # __getattr__()
