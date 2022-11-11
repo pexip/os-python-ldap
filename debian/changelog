@@ -1,3 +1,9 @@
+python-ldap (3.2.0-4pexip4) pexip; urgency=medium
+
+  * Build-Depend on OpenSSL 3
+
+ -- John-Mark Bell <jmb@pexip.com>  Fri, 10 Nov 2022 18:12:44 +0000
+
 python-ldap (3.2.0-4pexip3) pexip-bullseye; urgency=medium
 
   * Bullseye rebuild for ARM64 inclusion
