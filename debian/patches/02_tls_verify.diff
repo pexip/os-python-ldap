@@ -102,7 +102,7 @@
 +    char *pem = NULL;
 +    int errnum, errdepth;
 +    PyObject *argv, *ret = NULL;
-+    SSL *ssl = (SSL *) X509_STORE_CTX_get_app_data(ctx);
++    SSL *ssl = (SSL *) X509_STORE_CTX_get_ex_data(ctx, SSL_get_ex_data_X509_STORE_CTX_idx());
 +    LDAPObject *self = (LDAPObject *) SSL_get_app_data(ssl);
 +
 +    if (self->old_tls_cb != NULL) {
