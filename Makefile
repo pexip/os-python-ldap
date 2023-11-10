@@ -5,12 +5,17 @@ LCOV_REPORT_OPTIONS=--show-details -no-branch-coverage \
 	--title "python-ldap LCOV report"
 SCAN_REPORT=build/scan_report
 PYTHON_SUPP=/usr/share/doc/python3-devel/valgrind-python.supp
-AUTOPEP8_OPTS=--aggressive
+
 
 .NOTPARALLEL:
 
 .PHONY: all
 all:
+
+Modules/constants_generated.h: Lib/ldap/constants.py
+	$(PYTHON) $^ > $@
+	indent Modules/constants_generated.h
+	rm -f Modules/constants_generated.h~
 
 .PHONY: clean
 clean:
@@ -30,7 +35,7 @@ lcov-clean:
 	if [ -d build ]; then find build -name '*.gc??' -delete; fi
 
 lcov-coverage:
-	WITH_GCOV=1 tox -e py27,py36
+	WITH_GCOV=1 tox -e py36
 
 $(LCOV_INFO): build
 	lcov --capture --directory build --output-file $(LCOV_INFO)
@@ -80,13 +85,15 @@ valgrind: build $(PYTHON_SUPP)
 	fi
 
 # Code autoformatter
-.PHONY: autoformat indent autopep8
-autoformat: indent autopep8
+.PHONY: autoformat indent black black-check
+autoformat: indent black
 
 indent:
 	indent Modules/*.c Modules/*.h
 	rm -f Modules/*.c~ Modules/*.h~
 
-autopep8:
-	$(PYTHON) -m autopep8 -r -i -j0 $(AUTOPEP8_OPTS) \
-	    Demo Lib Tests setup.py
+black:
+	$(PYTHON) -m black $(CURDIR)
+
+black-check:
+	$(PYTHON) -m black $(CURDIR) --check

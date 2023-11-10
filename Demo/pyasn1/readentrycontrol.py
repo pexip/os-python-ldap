@@ -4,7 +4,6 @@ This sample script demonstrates the use of the pre-read control (see RFC 4527).
 
 Originally contributed by Andreas Hasenack <ahasenack@terra.com.br>
 """
-from __future__ import print_function
 
 import pprint,ldap,ldap.modlist
 
@@ -39,8 +38,8 @@ msg_id = l.add_ext(
   serverctrls = [pr]
 )
 _,_,_,resp_ctrls = l.result3(msg_id)
-print("resp_ctrls[0].dn:",resp_ctrls[0].dn)
-print("resp_ctrls[0].entry:";pprint.pprint(resp_ctrls[0].entry))
+print("resp_ctrls[0].dn:", resp_ctrls[0].dn)
+print("resp_ctrls[0].entry:", pprint.pformat(resp_ctrls[0].entry))
 
 print("""#---------------------------------------------------------------------------
 # Modify entry
@@ -56,7 +55,7 @@ msg_id = l.modify_ext(
 )
 _,_,_,resp_ctrls = l.result3(msg_id)
 print("resp_ctrls[0].dn:",resp_ctrls[0].dn)
-print("resp_ctrls[0].entry:";pprint.pprint(resp_ctrls[0].entry))
+print("resp_ctrls[0].entry:",pprint.pformat(resp_ctrls[0].entry))
 
 pr = PostReadControl(criticality=True,attrList=['uidNumber','gidNumber','entryCSN'])
 
@@ -67,7 +66,7 @@ msg_id = l.modify_ext(
 )
 _,_,_,resp_ctrls = l.result3(msg_id)
 print("resp_ctrls[0].dn:",resp_ctrls[0].dn)
-print("resp_ctrls[0].entry:";pprint.pprint(resp_ctrls[0].entry))
+print("resp_ctrls[0].entry:",pprint.pformat(resp_ctrls[0].entry))
 
 print("""#---------------------------------------------------------------------------
 # Rename entry
@@ -83,7 +82,7 @@ msg_id = l.rename(
 )
 _,_,_,resp_ctrls = l.result3(msg_id)
 print("resp_ctrls[0].dn:",resp_ctrls[0].dn)
-print("resp_ctrls[0].entry:";pprint.pprint(resp_ctrls[0].entry))
+print("resp_ctrls[0].entry:",pprint.pformat(resp_ctrls[0].entry))
 
 pr = PreReadControl(criticality=True,attrList=['uid'])
 msg_id = l.rename(
@@ -94,7 +93,7 @@ msg_id = l.rename(
 )
 _,_,_,resp_ctrls = l.result3(msg_id)
 print("resp_ctrls[0].dn:",resp_ctrls[0].dn)
-print("resp_ctrls[0].entry:";pprint.pprint(resp_ctrls[0].entry))
+print("resp_ctrls[0].entry:",pprint.pformat(resp_ctrls[0].entry))
 
 print("""#---------------------------------------------------------------------------
 # Delete entry
@@ -108,4 +107,4 @@ msg_id = l.delete_ext(
 )
 _,_,_,resp_ctrls = l.result3(msg_id)
 print("resp_ctrls[0].dn:",resp_ctrls[0].dn)
-print("resp_ctrls[0].entry:";pprint.pprint(resp_ctrls[0].entry))
+print("resp_ctrls[0].entry:",pprint.pformat(resp_ctrls[0].entry))

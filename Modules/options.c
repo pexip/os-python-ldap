@@ -5,6 +5,7 @@
 #include "LDAPObject.h"
 #include "ldapcontrol.h"
 #include "options.h"
+#include "berval.h"
 
 void
 set_timeval_from_double(struct timeval *tv, double d)
@@ -40,9 +41,14 @@ LDAP_set_option(LDAPObject *self, int option, PyObject *value)
 {
     int res;
     int intval;
+    unsigned int uintval;
     double doubleval;
     char *strval;
     struct timeval tv;
+#if HAVE_SASL
+    /* unsigned long */
+    ber_len_t blen;
+#endif
     void *ptr;
     LDAP *ld;
     LDAPControl **controls = NULL;
@@ -52,8 +58,12 @@ LDAP_set_option(LDAPObject *self, int option, PyObject *value)
     switch (option) {
     case LDAP_OPT_API_INFO:
     case LDAP_OPT_API_FEATURE_INFO:
+    case LDAP_OPT_DESC:
 #ifdef HAVE_SASL
     case LDAP_OPT_X_SASL_SSF:
+#endif
+#ifdef LDAP_OPT_X_TLS_PEERCERT
+    case LDAP_OPT_X_TLS_PEERCERT:
 #endif
         /* Read-only options */
         PyErr_SetString(PyExc_ValueError, "read-only option");
@@ -88,10 +98,12 @@ LDAP_set_option(LDAPObject *self, int option, PyObject *value)
 #ifdef LDAP_OPT_X_TLS_PROTOCOL_MIN
     case LDAP_OPT_X_TLS_PROTOCOL_MIN:
 #endif
+#ifdef LDAP_OPT_X_TLS_PROTOCOL_MAX
+    case LDAP_OPT_X_TLS_PROTOCOL_MAX:
 #endif
-#ifdef HAVE_SASL
-    case LDAP_OPT_X_SASL_SSF_MIN:
-    case LDAP_OPT_X_SASL_SSF_MAX:
+#ifdef LDAP_OPT_X_TLS_REQUIRE_SAN
+    case LDAP_OPT_X_TLS_REQUIRE_SAN:
+#endif
 #endif
 #ifdef LDAP_OPT_X_KEEPALIVE_IDLE
     case LDAP_OPT_X_KEEPALIVE_IDLE:
@@ -108,6 +120,26 @@ LDAP_set_option(LDAPObject *self, int option, PyObject *value)
             return 0;
         ptr = &intval;
         break;
+
+#ifdef LDAP_OPT_TCP_USER_TIMEOUT
+    case LDAP_OPT_TCP_USER_TIMEOUT:
+#endif
+        if (!PyArg_Parse(value, "I:set_option", &uintval))
+            return 0;
+        ptr = &uintval;
+        break;
+
+#ifdef HAVE_SASL
+    case LDAP_OPT_X_SASL_SSF_MIN:
+    case LDAP_OPT_X_SASL_SSF_MAX:
+    case LDAP_OPT_X_SASL_SSF_EXTERNAL:
+    case LDAP_OPT_X_SASL_MAXBUFSIZE:
+        if (!PyArg_Parse(value, "k:set_option", &blen))
+            return 0;
+        ptr = &blen;
+        break;
+#endif
+
     case LDAP_OPT_HOST_NAME:
     case LDAP_OPT_URI:
 #ifdef LDAP_OPT_DEFBASE
@@ -126,15 +158,22 @@ LDAP_set_option(LDAPObject *self, int option, PyObject *value)
 #ifdef LDAP_OPT_X_TLS_CRLFILE
     case LDAP_OPT_X_TLS_CRLFILE:
 #endif
+#ifdef LDAP_OPT_X_TLS_ECNAME
+    case LDAP_OPT_X_TLS_ECNAME:
+#endif
 #endif
 #ifdef HAVE_SASL
     case LDAP_OPT_X_SASL_SECPROPS:
+#endif
+#ifdef LDAP_OPT_SOCKET_BIND_ADDRESSES
+    case LDAP_OPT_SOCKET_BIND_ADDRESSES:
 #endif
         /* String valued options */
         if (!PyArg_Parse(value, "s:set_option", &strval))
             return 0;
         ptr = strval;
         break;
+
     case LDAP_OPT_TIMEOUT:
     case LDAP_OPT_NETWORK_TIMEOUT:
         /* Float valued timeval options */
@@ -168,8 +207,8 @@ LDAP_set_option(LDAPObject *self, int option, PyObject *value)
         }
         else {
             PyErr_Format(PyExc_ValueError,
-                         "timeout must be >= 0 or -1/None for infinity, got %d",
-                         option);
+                         "timeout must be >= 0 or -1/None for infinity, got %f",
+                         doubleval);
             return 0;
         }
         break;
@@ -185,11 +224,18 @@ LDAP_set_option(LDAPObject *self, int option, PyObject *value)
         return 0;
     }
 
-    if (self)
+    if (self) {
         LDAP_BEGIN_ALLOW_THREADS(self);
-    res = ldap_set_option(ld, option, ptr);
-    if (self)
+        res = ldap_set_option(ld, option, ptr);
         LDAP_END_ALLOW_THREADS(self);
+    }
+    else {
+        PyThreadState *save;
+
+        save = PyEval_SaveThread();
+        res = ldap_set_option(NULL, option, ptr);
+        PyEval_RestoreThread(save);
+    }
 
     if ((option == LDAP_OPT_SERVER_CONTROLS) ||
         (option == LDAP_OPT_CLIENT_CONTROLS))
@@ -203,29 +249,55 @@ LDAP_set_option(LDAPObject *self, int option, PyObject *value)
     return 1;
 }
 
+static int
+LDAP_int_get_option(LDAPObject *self, int option, void *value)
+{
+    int res;
+
+    if (self != NULL) {
+        LDAP_BEGIN_ALLOW_THREADS(self);
+        res = ldap_get_option(self->ldap, option, value);
+        LDAP_END_ALLOW_THREADS(self);
+    }
+    else {
+        PyThreadState *save;
+
+        save = PyEval_SaveThread();
+        res = ldap_get_option(NULL, option, value);
+        PyEval_RestoreThread(save);
+    }
+    return res;
+}
+
 PyObject *
 LDAP_get_option(LDAPObject *self, int option)
 {
     int res;
     int intval;
+    unsigned int uintval;
     struct timeval *tv;
     LDAPAPIInfo apiinfo;
     LDAPControl **lcs;
     char *strval;
+    struct berval berbytes;
+#if HAVE_SASL
+    /* unsigned long */
+    ber_len_t blen;
+#endif
     PyObject *extensions, *v;
     Py_ssize_t i, num_extensions;
-    LDAP *ld;
-
-    ld = self ? self->ldap : NULL;
 
     switch (option) {
+#ifdef HAVE_SASL
+    case LDAP_OPT_X_SASL_SECPROPS:
+    case LDAP_OPT_X_SASL_SSF_EXTERNAL:
+        /* Write-only options */
+        PyErr_SetString(PyExc_ValueError, "write-only option");
+        return NULL;
+#endif
     case LDAP_OPT_API_INFO:
         apiinfo.ldapai_info_version = LDAP_API_INFO_VERSION;
-        if (self)
-            LDAP_BEGIN_ALLOW_THREADS(self);
-        res = ldap_get_option(ld, option, &apiinfo);
-        if (self)
-            LDAP_END_ALLOW_THREADS(self);
+        res = LDAP_int_get_option(self, option, &apiinfo);
         if (res != LDAP_OPT_SUCCESS)
             return option_error(res, "ldap_get_option");
 
@@ -236,8 +308,8 @@ LDAP_get_option(LDAPObject *self, int option)
         extensions = PyTuple_New(num_extensions);
         for (i = 0; i < num_extensions; i++)
             PyTuple_SET_ITEM(extensions, i,
-                             PyUnicode_FromString(apiinfo.
-                                                  ldapai_extensions[i]));
+                             PyUnicode_FromString(apiinfo.ldapai_extensions
+                                                  [i]));
 
         /* return api info as a dictionary */
         v = Py_BuildValue("{s:i, s:i, s:i, s:s, s:i, s:O}",
@@ -257,9 +329,6 @@ LDAP_get_option(LDAPObject *self, int option)
 
         return v;
 
-#ifdef HAVE_SASL
-    case LDAP_OPT_X_SASL_SSF:
-#endif
     case LDAP_OPT_REFERRALS:
     case LDAP_OPT_RESTART:
     case LDAP_OPT_DEREF:
@@ -278,10 +347,12 @@ LDAP_get_option(LDAPObject *self, int option)
 #ifdef LDAP_OPT_X_TLS_PROTOCOL_MIN
     case LDAP_OPT_X_TLS_PROTOCOL_MIN:
 #endif
+#ifdef LDAP_OPT_X_TLS_PROTOCOL_MAX
+    case LDAP_OPT_X_TLS_PROTOCOL_MAX:
 #endif
-#ifdef HAVE_SASL
-    case LDAP_OPT_X_SASL_SSF_MIN:
-    case LDAP_OPT_X_SASL_SSF_MAX:
+#ifdef LDAP_OPT_X_TLS_REQUIRE_SAN
+    case LDAP_OPT_X_TLS_REQUIRE_SAN:
+#endif
 #endif
 #ifdef LDAP_OPT_X_SASL_NOCANON
     case LDAP_OPT_X_SASL_NOCANON:
@@ -299,14 +370,31 @@ LDAP_get_option(LDAPObject *self, int option)
     case LDAP_OPT_X_KEEPALIVE_INTERVAL:
 #endif
         /* Integer-valued options */
-        if (self)
-            LDAP_BEGIN_ALLOW_THREADS(self);
-        res = ldap_get_option(ld, option, &intval);
-        if (self)
-            LDAP_END_ALLOW_THREADS(self);
+        res = LDAP_int_get_option(self, option, &intval);
         if (res != LDAP_OPT_SUCCESS)
             return option_error(res, "ldap_get_option");
         return PyInt_FromLong(intval);
+
+#ifdef LDAP_OPT_TCP_USER_TIMEOUT
+    case LDAP_OPT_TCP_USER_TIMEOUT:
+#endif
+        /* unsigned int options */
+        res = LDAP_int_get_option(self, option, &uintval);
+        if (res != LDAP_OPT_SUCCESS)
+            return option_error(res, "ldap_get_option");
+        return PyLong_FromUnsignedLong(uintval);
+
+#ifdef HAVE_SASL
+    case LDAP_OPT_X_SASL_SSF:
+    case LDAP_OPT_X_SASL_SSF_MIN:
+    case LDAP_OPT_X_SASL_SSF_MAX:
+    case LDAP_OPT_X_SASL_MAXBUFSIZE:
+        /* ber_len_t options (unsigned long)*/
+        res = LDAP_int_get_option(self, option, &blen);
+        if (res != LDAP_OPT_SUCCESS)
+            return option_error(res, "ldap_get_option");
+        return PyLong_FromUnsignedLong(blen);
+#endif
 
     case LDAP_OPT_HOST_NAME:
     case LDAP_OPT_URI:
@@ -335,9 +423,11 @@ LDAP_get_option(LDAPObject *self, int option)
 #ifdef LDAP_OPT_X_TLS_PACKAGE
     case LDAP_OPT_X_TLS_PACKAGE:
 #endif
+#ifdef LDAP_OPT_X_TLS_ECNAME
+    case LDAP_OPT_X_TLS_ECNAME:
+#endif
 #endif
 #ifdef HAVE_SASL
-    case LDAP_OPT_X_SASL_SECPROPS:
     case LDAP_OPT_X_SASL_MECH:
     case LDAP_OPT_X_SASL_REALM:
     case LDAP_OPT_X_SASL_AUTHCID:
@@ -346,12 +436,11 @@ LDAP_get_option(LDAPObject *self, int option)
     case LDAP_OPT_X_SASL_USERNAME:
 #endif
 #endif
+#ifdef LDAP_OPT_SOCKET_BIND_ADDRESSES
+    case LDAP_OPT_SOCKET_BIND_ADDRESSES:
+#endif
         /* String-valued options */
-        if (self)
-            LDAP_BEGIN_ALLOW_THREADS(self);
-        res = ldap_get_option(ld, option, &strval);
-        if (self)
-            LDAP_END_ALLOW_THREADS(self);
+        res = LDAP_int_get_option(self, option, &strval);
         if (res != LDAP_OPT_SUCCESS)
             return option_error(res, "ldap_get_option");
         if (strval == NULL) {
@@ -362,14 +451,23 @@ LDAP_get_option(LDAPObject *self, int option)
         ldap_memfree(strval);
         return v;
 
+#ifdef HAVE_TLS
+#ifdef LDAP_OPT_X_TLS_PEERCERT
+    case LDAP_OPT_X_TLS_PEERCERT:
+#endif
+#endif
+        /* Options dealing with raw data */
+        res = LDAP_int_get_option(self, option, &berbytes);
+        if (res != LDAP_OPT_SUCCESS)
+            return option_error(res, "ldap_get_option");
+        v = LDAPberval_to_object(&berbytes);
+        ldap_memfree(berbytes.bv_val);
+        return v;
+
     case LDAP_OPT_TIMEOUT:
     case LDAP_OPT_NETWORK_TIMEOUT:
         /* Double-valued timeval options */
-        if (self)
-            LDAP_BEGIN_ALLOW_THREADS(self);
-        res = ldap_get_option(ld, option, &tv);
-        if (self)
-            LDAP_END_ALLOW_THREADS(self);
+        res = LDAP_int_get_option(self, option, &tv);
         if (res != LDAP_OPT_SUCCESS)
             return option_error(res, "ldap_get_option");
         if (tv == NULL) {
@@ -384,12 +482,7 @@ LDAP_get_option(LDAPObject *self, int option)
 
     case LDAP_OPT_SERVER_CONTROLS:
     case LDAP_OPT_CLIENT_CONTROLS:
-        if (self)
-            LDAP_BEGIN_ALLOW_THREADS(self);
-        res = ldap_get_option(ld, option, &lcs);
-        if (self)
-            LDAP_END_ALLOW_THREADS(self);
-
+        res = LDAP_int_get_option(self, option, &lcs);
         if (res != LDAP_OPT_SUCCESS)
             return option_error(res, "ldap_get_option");
 

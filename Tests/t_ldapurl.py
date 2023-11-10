@@ -1,19 +1,14 @@
-# -*- coding: utf-8 -*-
 """
 Automatic tests for python-ldap's module ldapurl
 
 See https://www.python-ldap.org/ for details.
 """
-
-from __future__ import unicode_literals
-
 import os
 import unittest
+from urllib.parse import quote
 
 # Switch off processing .ldaprc or ldap.conf before importing _ldap
 os.environ['LDAPNOINIT'] = '1'
-
-from ldap.compat import quote
 
 import ldapurl
 from ldapurl import LDAPUrl
@@ -38,18 +33,23 @@ class TestIsLDAPUrl(unittest.TestCase):
         'ldap://host.com:6666/o=University%20of%20Michigan,':1,
         'ldap://ldap.itd.umich.edu/c=GB?objectClass?one':1,
         'ldap://ldap.question.com/o=Question%3f,c=US?mail':1,
-        'ldap://ldap.netscape.com/o=Babsco,c=US??(int=%5c00%5c00%5c00%5c04)':1,
+        'ldap://ldap.netscape.com/o=Babsco,c=US???(int=%5c00%5c00%5c00%5c04)':1,
         'ldap:///??sub??bindname=cn=Manager%2co=Foo':1,
         'ldap:///??sub??!bindname=cn=Manager%2co=Foo':1,
         # More examples from various sources
         'ldap://ldap.nameflow.net:1389/c%3dDE':1,
         'ldap://root.openldap.org/dc=openldap,dc=org':1,
-        'ldap://root.openldap.org/dc=openldap,dc=org':1,
+        'ldaps://root.openldap.org/dc=openldap,dc=org':1,
         'ldap://x500.mh.se/o=Mitthogskolan,c=se????1.2.752.58.10.2=T.61':1,
         'ldp://root.openldap.org/dc=openldap,dc=org':0,
         'ldap://localhost:1389/ou%3DUnstructured%20testing%20tree%2Cdc%3Dstroeder%2Cdc%3Dcom??one':1,
         'ldaps://ldap.example.com/c%3dDE':1,
         'ldapi:///dc=stroeder,dc=de????x-saslmech=EXTERNAL':1,
+        'LDAP://localhost': True,
+        'LDAPS://localhost': True,
+        'LDAPI://%2Frun%2Fldap.sock': True,
+        ' ldap://space.example': False,
+        'ldap ://space.example': False,
     }
 
     def test_isLDAPUrl(self):
@@ -61,6 +61,11 @@ class TestIsLDAPUrl(unittest.TestCase):
                     ldap_url, result, expected,
                 )
             )
+            if expected:
+                LDAPUrl(ldapUrl=ldap_url)
+            else:
+                with self.assertRaises(ValueError):
+                    LDAPUrl(ldapUrl=ldap_url)
 
 
 class TestParseLDAPUrl(unittest.TestCase):
@@ -150,6 +155,22 @@ class TestParseLDAPUrl(unittest.TestCase):
         ),
     ),
     (
+        'LDAPS://localhost:12345/dc=stroeder,dc=com',
+        LDAPUrl(
+            urlscheme='ldaps',
+            hostport='localhost:12345',
+            dn='dc=stroeder,dc=com',
+        ),
+    ),
+    (
+        'ldaps://localhost:12345/dc=stroeder,dc=com',
+        LDAPUrl(
+            urlscheme='LDAPS',
+            hostport='localhost:12345',
+            dn='dc=stroeder,dc=com',
+        ),
+    ),
+    (
         'ldapi://%2ftmp%2fopenldap2-1389/dc=stroeder,dc=com',
         LDAPUrl(
             urlscheme='ldapi',
@@ -164,7 +185,7 @@ class TestParseLDAPUrl(unittest.TestCase):
             ldap_url_obj = LDAPUrl(ldapUrl=ldap_url_str)
             self.assertEqual(
                 ldap_url_obj, test_ldap_url_obj,
-                'Attributes of LDAPUrl(%s) are:\n%s\ninstead of:\n%s' % (
+                'Attributes of LDAPUrl({}) are:\n{}\ninstead of:\n{}'.format(
                     repr(ldap_url_str),
                     repr(ldap_url_obj),
                     repr(test_ldap_url_obj),
@@ -174,7 +195,7 @@ class TestParseLDAPUrl(unittest.TestCase):
             unparsed_ldap_url_obj = LDAPUrl(ldapUrl=unparsed_ldap_url_str)
             self.assertEqual(
                 unparsed_ldap_url_obj, test_ldap_url_obj,
-                'Attributes of LDAPUrl(%s) are:\n%s\ninstead of:\n%s' % (
+                'Attributes of LDAPUrl({}) are:\n{}\ninstead of:\n{}'.format(
                     repr(unparsed_ldap_url_str),
                     repr(unparsed_ldap_url_obj),
                     repr(test_ldap_url_obj),

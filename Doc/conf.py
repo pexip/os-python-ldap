@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # python-ldap documentation build configuration file, created by
 # sphinx-quickstart on Sat Mar 29 15:08:17 2008.
@@ -11,6 +10,7 @@
 # All configuration values have a default value; values that are commented out
 # serve to show the default value.
 
+import datetime
 import sys
 import os
 
@@ -34,6 +34,7 @@ from ldap import __version__
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.intersphinx',
+    'sphinx.ext.napoleon',
 ]
 
 try:
@@ -54,7 +55,7 @@ master_doc = 'index'
 
 # General substitutions.
 project = 'python-ldap'
-copyright = '2008-2017, python-ldap project team'
+copyright = 'python-ldap project team'
 
 # The default replacements for |version| and |release|, also used in various
 # other places throughout the built documents.

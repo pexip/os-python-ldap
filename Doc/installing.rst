@@ -111,7 +111,7 @@ Build prerequisites
 The following software packages are required to be installed
 on the local system when building python-ldap:
 
-- `Python`_ version 2.7, or 3.4 or later including its development files
+- `Python`_ including its development files
 - C compiler corresponding to your Python version (on Linux, it is usually ``gcc``)
 - `OpenLDAP`_ client libs version 2.4.11 or later;
   it is not possible and not supported to build with prior versions.
@@ -130,7 +130,7 @@ Alpine
 
 Packages for building::
 
-    # apk add build-base openldap-dev python2-dev python3-dev
+    # apk add build-base openldap-dev python3-dev
 
 CentOS
 ------
@@ -145,9 +145,13 @@ Debian
 
 Packages for building and testing::
 
-   # apt-get install build-essential python3-dev python2.7-dev \
-       libldap2-dev libsasl2-dev slapd ldap-utils python-tox \
+   # apt-get install build-essential python3-dev \
+       libldap2-dev libsasl2-dev slapd ldap-utils tox \
        lcov valgrind
+
+.. note::
+
+   On older releases ``tox`` was called ``python-tox``.
 
 Fedora
 ------
@@ -155,7 +159,7 @@ Fedora
 Packages for building and testing::
 
    # dnf install "@C Development Tools and Libraries" openldap-devel \
-       python2-devel python3-devel python3-tox \
+       python3-devel python3-tox \
        lcov clang-analyzer valgrind
 
 .. note::
@@ -164,10 +168,10 @@ Packages for building and testing::
    newer are required.
 
 
-setup.cfg
-=========
+``setup.cfg``
+=============
 
-The file setup.cfg allows to set some build and installation parameters for
+The file ``setup.cfg`` allows to set some build and installation parameters for
 reflecting the local installation of required software packages. Only section
 ``[_ldap]`` is described here. More information about other sections can be
 found in :ref:`Setuptools documentation <distributing-index>`.

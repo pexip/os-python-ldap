@@ -5,10 +5,9 @@ See https://www.python-ldap.org/ for details.
 """
 
 import copy
+from urllib.request import urlopen
 
 import ldap.cidict,ldap.schema
-
-from ldap.compat import urlopen
 from ldap.schema.models import *
 
 import ldapurl
@@ -23,7 +22,7 @@ for o in list(vars().values()):
     SCHEMA_CLASS_MAPPING[o.schema_attribute] = o
     SCHEMA_ATTR_MAPPING[o] = o.schema_attribute
 
-SCHEMA_ATTRS = SCHEMA_CLASS_MAPPING.keys()
+SCHEMA_ATTRS = list(SCHEMA_CLASS_MAPPING)
 
 
 class SubschemaError(ValueError):
@@ -122,7 +121,7 @@ class SubSchema:
         self.sed[se_class][se_id] = se_instance
 
         if hasattr(se_instance,'names'):
-          for name in ldap.cidict.cidict({}.fromkeys(se_instance.names)).keys():
+          for name in ldap.cidict.cidict({}.fromkeys(se_instance.names)):
             if check_uniqueness and name in self.name2oid[se_class]:
               self.non_unique_names[se_class][se_id] = None
               raise NameNotUnique(attr_value)
@@ -130,7 +129,7 @@ class SubSchema:
               self.name2oid[se_class][name] = se_id
 
     # Turn dict into list maybe more handy for applications
-    self.non_unique_oids = self.non_unique_oids.keys()
+    self.non_unique_oids = list(self.non_unique_oids)
 
     return # subSchema.__init__()
 
@@ -168,7 +167,7 @@ class SubSchema:
           except AttributeError:
             pass
     else:
-      result = avail_se.keys()
+      result = list(avail_se)
     return result
 
 
@@ -192,7 +191,7 @@ class SubSchema:
         # This helps with falsely assigned OIDs.
         continue
       assert se_obj.__class__==schema_element_class, \
-        "Schema element referenced by %s must be of class %s but was %s" % (
+        "Schema element referenced by {} must be of class {} but was {}".format(
           se_oid,schema_element_class.__name__,se_obj.__class__
         )
       for s in se_obj.sup or ('_',):
@@ -217,7 +216,7 @@ class SubSchema:
         result_oid = self.name2oid[se_class][nameoroid_stripped]
       except KeyError:
         if raise_keyerror:
-          raise KeyError('No registered %s-OID for nameoroid %s' % (se_class.__name__,repr(nameoroid_stripped)))
+          raise KeyError('No registered {}-OID for nameoroid {}'.format(se_class.__name__,repr(nameoroid_stripped)))
         else:
           result_oid = nameoroid_stripped
     return result_oid
@@ -250,7 +249,7 @@ class SubSchema:
       se_obj = self.sed[se_class][se_oid]
     except KeyError:
       if raise_keyerror:
-        raise KeyError('No ldap.schema.%s instance with nameoroid %s and se_oid %s' % (
+        raise KeyError('No ldap.schema.{} instance with nameoroid {} and se_oid {}'.format(
           se_class.__name__,repr(nameoroid),repr(se_oid))
         )
       else:
@@ -422,14 +421,14 @@ class SubSchema:
 
     # Remove all mandantory attribute types from
     # optional attribute type list
-    for a in list(r_may.keys()):
+    for a in list(r_may):
       if a in r_must:
         del r_may[a]
 
     # Apply attr_type_filter to results
     if attr_type_filter:
       for l in [r_must,r_may]:
-        for a in list(l.keys()):
+        for a in list(l):
           for afk,afv in attr_type_filter:
             try:
               schema_attr_type = self.sed[AttributeType][a]
@@ -462,7 +461,7 @@ def urlfetch(uri,trace_level=0):
 
     l=ldap.initialize(ldap_url.initializeUrl(),trace_level)
     l.protocol_version = ldap.VERSION3
-    l.simple_bind_s(ldap_url.who or u'', ldap_url.cred or u'')
+    l.simple_bind_s(ldap_url.who or '', ldap_url.cred or '')
     subschemasubentry_dn = l.search_subschemasubentry_s(ldap_url.dn)
     if subschemasubentry_dn is None:
       s_temp = None

@@ -27,9 +27,6 @@ if __debug__:
   # Tracing is only supported in debugging mode
   import traceback
 
-# See _raise_byteswarning in ldapobject.py
-_LDAP_WARN_SKIP_FRAME = True
-
 
 def _ldap_function_call(lock,func,*args,**kwargs):
   """
@@ -44,7 +41,7 @@ def _ldap_function_call(lock,func,*args,**kwargs):
     lock.acquire()
   if __debug__:
     if ldap._trace_level>=1:
-      ldap._trace_file.write('*** %s.%s %s\n' % (
+      ldap._trace_file.write('*** {}.{} {}\n'.format(
         '_ldap',func.__name__,
         pprint.pformat((args,kwargs))
       ))
@@ -67,7 +64,7 @@ def _ldap_function_call(lock,func,*args,**kwargs):
 
 def initialize(
     uri, trace_level=0, trace_file=sys.stdout, trace_stack_limit=None,
-    bytes_mode=None, **kwargs
+    bytes_mode=None, fileno=None, **kwargs
 ):
   """
   Return LDAPObject instance by opening LDAP connection to
@@ -84,12 +81,17 @@ def initialize(
         Default is to use stdout.
   bytes_mode
         Whether to enable :ref:`bytes_mode` for backwards compatibility under Py2.
+  fileno
+        If not None the socket file descriptor is used to connect to an
+        LDAP server.
 
   Additional keyword arguments (such as ``bytes_strictness``) are
   passed to ``LDAPObject``.
   """
   return LDAPObject(
-      uri, trace_level, trace_file, trace_stack_limit, bytes_mode, **kwargs)
+      uri, trace_level, trace_file, trace_stack_limit, bytes_mode,
+      fileno=fileno, **kwargs
+  )
 
 
 def get_option(option):
