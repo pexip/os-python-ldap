@@ -1,5 +1,5 @@
-#placeholder
-
 02_tls_verify.diff
 03_unknown_errors.diff
 04_nullable_stropts.diff
+0001-Search-for-slapadd-in-sbin-path.patch
+0002-Use-local-objects.inv-in-intersphinx-mapping.patch

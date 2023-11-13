@@ -171,6 +171,7 @@ search.
 .. autoclass:: ldap.controls.psearch.EntryChangeNotificationControl
    :members:
 
+.. |ASN.1| replace:: Asn1Type
 
 :py:mod:`ldap.controls.sessiontrack` Session tracking control
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -197,6 +198,9 @@ search.
 
    :rfc:`4527` - Lightweight Directory Access Protocol (LDAP): Read Entry Controls
 
+.. versionchanged:: 4.0
+   The attribute values of the entry now consists of `bytes` instead of ISO8859-1 decoded `str`.
+
 
 .. autoclass:: ldap.controls.readentry.ReadEntryControl
    :members:
@@ -205,4 +209,17 @@ search.
    :members:
 
 .. autoclass:: ldap.controls.readentry.PostReadControl
+   :members:
+
+
+:py:mod:`ldap.controls.ppolicy` Password Policy Control
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. seealso::
+   `draft-behera-ldap-password-policy <https://tools.ietf.org/html/draft-behera-ldap-password-policy>`_
+
+.. py:module:: ldap.controls.ppolicy
+   :synopsis: passworld policies
+
+.. autoclass:: ldap.controls.ppolicy.PasswordPolicyControl
    :members:

@@ -1,52 +1,61 @@
-# -*- coding: utf-8 -*-
 """
 Automatic tests for python-ldap's module ldap.syncrepl
 
 See https://www.python-ldap.org/ for details.
 """
-
-
 import os
 import shelve
-import sys
 import unittest
-
-if sys.version_info[0] <= 2:
-    PY2 = True
-else:
-    PY2 = False
+import binascii
 
 # Switch off processing .ldaprc or ldap.conf before importing _ldap
 os.environ['LDAPNOINIT'] = '1'
 
 import ldap
 from ldap.ldapobject import SimpleLDAPObject
-from ldap.syncrepl import SyncreplConsumer
+from ldap.syncrepl import SyncreplConsumer, SyncInfoMessage
 
 from slapdtest import SlapdObject, SlapdTestCase
 
 # a template string for generating simple slapd.conf file
-SLAPD_CONF_PROVIDER_TEMPLATE = r"""
-serverID %(serverid)s
-moduleload back_%(database)s
-moduleload syncprov
-include "%(schema_prefix)s/core.schema"
-loglevel %(loglevel)s
-allow bind_v2
+SLAPD_CONF_PROVIDER_TEMPLATE = r"""dn: cn=config
+objectClass: olcGlobal
+cn: config
+olcServerID: %(serverid)s
+olcLogLevel: %(loglevel)s
+olcAllows: bind_v2
+olcAuthzRegexp: {0}"gidnumber=%(root_gid)s\+uidnumber=%(root_uid)s,cn=peercred,cn=external,cn=auth" "%(rootdn)s"
+olcAuthzRegexp: {1}"C=DE, O=python-ldap, OU=slapd-test, CN=([A-Za-z]+)" "ldap://ou=people,dc=local???($1)"
+olcTLSCACertificateFile: %(cafile)s
+olcTLSCertificateFile: %(servercert)s
+olcTLSCertificateKeyFile: %(serverkey)s
+olcTLSVerifyClient: try
 
-authz-regexp
-  "gidnumber=%(root_gid)s\\+uidnumber=%(root_uid)s,cn=peercred,cn=external,cn=auth"
-  "%(rootdn)s"
+dn: cn=module,cn=config
+objectClass: olcModuleList
+cn: module
+olcModuleLoad: back_%(database)s
+olcModuleLoad: syncprov
 
-database %(database)s
-directory "%(directory)s"
-suffix "%(suffix)s"
-rootdn "%(rootdn)s"
-rootpw "%(rootpw)s"
-overlay syncprov
-syncprov-checkpoint 100 10
-syncprov-sessionlog 100
-index objectclass,entryCSN,entryUUID eq
+dn: olcDatabase=%(database)s,cn=config
+objectClass: olcDatabaseConfig
+objectClass: olcMdbConfig
+olcDatabase: %(database)s
+olcSuffix: %(suffix)s
+olcRootDN: %(rootdn)s
+olcRootPW: %(rootpw)s
+olcDbDirectory: %(directory)s
+olcDbIndex: objectclass,entryCSN,entryUUID eq
+
+dn: olcOverlay=syncprov,olcDatabase={1}%(database)s,cn=config
+objectClass: olcOverlayConfig
+objectClass: olcSyncProvConfig
+olcOverlay: syncprov
+olcSpCheckpoint: 100 10
+olcSpSessionlog: 100
+"""
+
+OTHER_CONF = r"""
 """
 
 # Define initial data load, both as an LDIF and as a dictionary.
@@ -242,7 +251,7 @@ class SyncreplClient(SimpleLDAPObject, SyncreplConsumer):
 
         elif (uuids is None) and (refreshDeletes is False):
             deleted_uuids = []
-            for uuid in self.uuid_dn.keys():
+            for uuid in self.uuid_dn:
                 if uuid not in self.present:
                     deleted_uuids.append(uuid)
 
@@ -256,7 +265,7 @@ class SyncreplClient(SimpleLDAPObject, SyncreplConsumer):
             pass
 
 
-class BaseSyncreplTests(object):
+class BaseSyncreplTests:
     """
     This is a test of all the basic Syncrepl operations.  It covers starting a
     search (both types of search), doing the refresh part of the search,
@@ -269,7 +278,7 @@ class BaseSyncreplTests(object):
 
     @classmethod
     def setUpClass(cls):
-        super(BaseSyncreplTests, cls).setUpClass()
+        super().setUpClass()
         # insert some Foo* objects via ldapadd
         cls.server.ldapadd(
             LDIF_TEMPLATE % {
@@ -282,13 +291,13 @@ class BaseSyncreplTests(object):
         )
 
     def setUp(self):
-        super(BaseSyncreplTests, self).setUp()
+        super().setUp()
         self.tester = None
         self.suffix = None
 
     def tearDown(self):
         self.tester.unbind_s()
-        super(BaseSyncreplTests, self).tearDown()
+        super().tearDown()
 
     def create_client(self):
         raise NotImplementedError
@@ -423,7 +432,7 @@ class BaseSyncreplTests(object):
 
 class TestSyncrepl(BaseSyncreplTests, SlapdTestCase):
     def setUp(self):
-        super(TestSyncrepl, self).setUp()
+        super().setUp()
         self.tester = SyncreplClient(
             self.server.ldap_uri,
             self.server.root_dn,
@@ -433,17 +442,46 @@ class TestSyncrepl(BaseSyncreplTests, SlapdTestCase):
         self.suffix = self.server.suffix
 
 
-@unittest.skipUnless(PY2, "no bytes_mode under Py3")
-class TestSyncreplBytesMode(BaseSyncreplTests, SlapdTestCase):
-    def setUp(self):
-        super(TestSyncreplBytesMode, self).setUp()
-        self.tester = SyncreplClient(
-            self.server.ldap_uri,
-            self.server.root_dn.encode('utf-8'),
-            self.server.root_pw.encode('utf-8'),
-            bytes_mode=True
+class DecodeSyncreplProtoTests(unittest.TestCase):
+    """
+    Tests of the ASN.1 decoder for tricky cases or past issues to ensure that
+    syncrepl messages are handled correctly.
+    """
+
+    def test_syncidset_message(self):
+        """
+        A syncrepl server may send a sync info message, with a syncIdSet
+        of uuids to delete. A regression was found in the original
+        sync info message implementation due to how the choice was
+        evaluated, because refreshPresent and refreshDelete were both
+        able to be fully expressed as defaults, causing the parser
+        to mistakenly catch a syncIdSet as a refreshPresent/refereshDelete.
+
+        This tests that a syncIdSet request is properly decoded.
+
+        reference: https://tools.ietf.org/html/rfc4533#section-2.5
+        """
+
+        # This is a dump of a syncidset message from wireshark + 389-ds
+        msg = """
+        a36b04526c6461706b64632e6578616d706c652e636f6d3a333839303123636e
+        3d6469726563746f7279206d616e616765723a64633d6578616d706c652c6463
+        3d636f6d3a286f626a656374436c6173733d2a2923330101ff311204108dc446
+        01a93611ea8aaff248c5fa5780
+        """.replace(' ', '').replace('\n', '')
+
+        msgraw = binascii.unhexlify(msg)
+        sim = SyncInfoMessage(msgraw)
+        self.assertEqual(sim.refreshDelete, None)
+        self.assertEqual(sim.refreshPresent, None)
+        self.assertEqual(sim.newcookie, None)
+        self.assertEqual(sim.syncIdSet,
+            {
+                'cookie': 'ldapkdc.example.com:38901#cn=directory manager:dc=example,dc=com:(objectClass=*)#3',
+                'syncUUIDs': ['8dc44601-a936-11ea-8aaf-f248c5fa5780'],
+                'refreshDeletes': True
+            }
         )
-        self.suffix = self.server.suffix.encode('utf-8')
 
 
 if __name__ == '__main__':

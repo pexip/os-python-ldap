@@ -7,15 +7,12 @@ See https://www.python-ldap.org/ for details.
 import sys,os
 from setuptools import setup, Extension
 
-if sys.version_info[0] == 2 and sys.version_info[1] < 7:
-    raise RuntimeError('This software requires Python 2.7 or 3.x.')
-if sys.version_info[0] >= 3 and sys.version_info < (3, 4):
-    raise RuntimeError('The C API from Python 3.4+ is required.')
+if sys.version_info < (3, 6):
+  raise RuntimeError(
+    'The C API from Python 3.6+ is required, found %s' % sys.version_info
+  )
 
-if sys.version_info[0] >= 3:
-    from configparser import ConfigParser
-else:
-    from ConfigParser import ConfigParser
+from configparser import ConfigParser
 
 sys.path.insert(0, os.path.join(os.getcwd(), 'Lib/ldap'))
 import pkginfo
@@ -88,14 +85,12 @@ setup(
     'Programming Language :: C',
 
     'Programming Language :: Python',
-    'Programming Language :: Python :: 2',
-    'Programming Language :: Python :: 2.7',
     'Programming Language :: Python :: 3',
-    'Programming Language :: Python :: 3.4',
-    'Programming Language :: Python :: 3.5',
     'Programming Language :: Python :: 3.6',
     'Programming Language :: Python :: 3.7',
-    # Note: when updating Python versions, also change .travis.yml and tox.ini
+    'Programming Language :: Python :: 3.8',
+    'Programming Language :: Python :: 3.9',
+    # Note: when updating Python versions, also change tox.ini and .github/workflows/*
 
     'Topic :: Database',
     'Topic :: Internet',
@@ -137,7 +132,6 @@ setup(
       extra_objects = LDAP_CLASS.extra_objects,
       runtime_library_dirs = (not sys.platform.startswith("win"))*LDAP_CLASS.library_dirs,
       define_macros = LDAP_CLASS.defines + \
-        ('ldap_r' in LDAP_CLASS.libs or 'oldap_r' in LDAP_CLASS.libs)*[('HAVE_LIBLDAP_R',None)] + \
         ('sasl' in LDAP_CLASS.libs or 'sasl2' in LDAP_CLASS.libs or 'libsasl' in LDAP_CLASS.libs)*[('HAVE_SASL',None)] + \
         ('ssl' in LDAP_CLASS.libs and 'crypto' in LDAP_CLASS.libs)*[('HAVE_TLS',None)] + \
         [
@@ -159,6 +153,7 @@ setup(
     'ldap.extop',
     'ldap.schema',
     'slapdtest',
+    'slapdtest.certs',
   ],
   package_dir = {'': 'Lib',},
   data_files = LDAP_CLASS.extra_files,
@@ -168,6 +163,6 @@ setup(
     'pyasn1_modules >= 0.1.5',
   ],
   zip_safe=False,
-  python_requires='>=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*',
+  python_requires='>=3.6',
   test_suite = 'Tests',
 )

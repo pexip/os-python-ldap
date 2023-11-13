@@ -1,0 +1,8 @@
+Tests: upstream, startserver
+Depends:
+ ldap-utils,
+ python3-all,
+ slapd,
+ @,
+ @builddeps@,
+Restrictions: allow-stderr

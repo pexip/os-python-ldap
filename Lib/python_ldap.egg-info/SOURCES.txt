@@ -6,6 +6,7 @@ MANIFEST.in
 Makefile
 README
 TODO
+pyproject.toml
 setup.cfg
 setup.py
 tox.ini
@@ -103,6 +104,7 @@ Lib/ldap/controls/sss.py
 Lib/ldap/controls/vlv.py
 Lib/ldap/extop/__init__.py
 Lib/ldap/extop/dds.py
+Lib/ldap/extop/passwd.py
 Lib/ldap/schema/__init__.py
 Lib/ldap/schema/models.py
 Lib/ldap/schema/subentry.py
@@ -152,6 +154,7 @@ Tests/t_edit.py
 Tests/t_ldap_asyncsearch.py
 Tests/t_ldap_controls_libldap.py
 Tests/t_ldap_controls_ppolicy.py
+Tests/t_ldap_controls_readentry.py
 Tests/t_ldap_controls_sss.py
 Tests/t_ldap_dn.py
 Tests/t_ldap_filter.py

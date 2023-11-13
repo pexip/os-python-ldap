@@ -1,0 +1,30 @@
+From: Michael Fladischer <fladi@debian.org>
+Date: Sun, 7 Aug 2022 12:48:29 +0000
+Subject: Use local objects.inv in intersphinx mapping.
+
+---
+ Doc/conf.py | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/Doc/conf.py b/Doc/conf.py
+index b883736..ab4eafa 100644
+--- a/Doc/conf.py
++++ b/Doc/conf.py
+@@ -153,4 +153,16 @@ latex_documents = [('index', 'python-ldap.tex', 'python-ldap Documentation',
+ # If false, no module index is generated.
+ latex_use_modindex = True
+ 
+-intersphinx_mapping = {'python': ('https://docs.python.org/3', None)}
++def check_object_path(key, url, path):
++    if os.path.isfile(path):
++        return {key: (url, path)}
++    return {}
++
++intersphinx_mapping = {}
++intersphinx_mapping.update(
++    check_object_path(
++        'python',
++        'https://docs.python.org/' + '.'.join([str(x) for x in sys.version_info[0:2]]),
++        '/usr/share/doc/python' + '.'.join([str(x) for x in sys.version_info[0:2]]) + '/html/objects.inv'
++    )
++)

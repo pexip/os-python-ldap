@@ -5,21 +5,9 @@
 
 #include "common.h"
 
-#include "lber.h"
-#include "ldap.h"
-#if LDAP_API_VERSION < 2040
-#error Current python-ldap requires OpenLDAP 2.4.x
-#endif
-
-#if PYTHON_API_VERSION < 1007
-typedef PyObject *_threadstate;
-#else
-typedef PyThreadState *_threadstate;
-#endif
-
 typedef struct {
     PyObject_HEAD LDAP *ldap;
-    _threadstate _save;         /* for thread saving on referrals */
+    PyThreadState *_save;         /* for thread saving on referrals */
     int valid;
 } LDAPObject;
 
@@ -42,7 +30,7 @@ extern LDAPObject *newLDAPObject(LDAP *);
 #define LDAP_END_ALLOW_THREADS( l )                                     \
 	{                                                               \
 	  LDAPObject *lo = (l);                                         \
-	  _threadstate _save = lo->_save;                               \
+	  PyThreadState *_save = lo->_save;                               \
 	  lo->_save = NULL;                                             \
 	  PyEval_RestoreThread( _save );                                \
 	}

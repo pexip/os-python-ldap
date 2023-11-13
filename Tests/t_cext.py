@@ -1,14 +1,12 @@
-# -*- coding: utf-8 -*-
 """
 Automatic tests for python-ldap's C wrapper module _ldap
 
 See https://www.python-ldap.org/ for details.
 """
-
-from __future__ import unicode_literals
-
+import contextlib
 import errno
 import os
+import socket
 import unittest
 
 # Switch off processing .ldaprc or ldap.conf before importing _ldap
@@ -16,7 +14,7 @@ os.environ['LDAPNOINIT'] = '1'
 
 # import the plain C wrapper module
 import _ldap
-from slapdtest import SlapdTestCase, requires_tls
+from slapdtest import SlapdTestCase, requires_tls, requires_init_fd
 
 
 class TestLdapCExtension(SlapdTestCase):
@@ -29,7 +27,7 @@ class TestLdapCExtension(SlapdTestCase):
 
     @classmethod
     def setUpClass(cls):
-        super(TestLdapCExtension, cls).setUpClass()
+        super().setUpClass()
         # add two initial objects after server was started and is still empty
         suffix_dc = cls.server.suffix.split(',')[0][3:]
         cls.server._log.debug(
@@ -53,14 +51,14 @@ class TestLdapCExtension(SlapdTestCase):
         )
 
     def setUp(self):
-        super(TestLdapCExtension, self).setUp()
+        super().setUp()
         self._writesuffix = None
 
     def tearDown(self):
         # cleanup test subtree
         if self._writesuffix is not None:
             self.server.ldapdelete(self._writesuffix, recursive=True)
-        super(TestLdapCExtension, self).tearDown()
+        super().tearDown()
 
     @property
     def writesuffix(self):
@@ -92,13 +90,34 @@ class TestLdapCExtension(SlapdTestCase):
         """
         l = _ldap.initialize(self.server.ldap_uri)
         if bind:
-            # Perform a simple bind
-            l.set_option(_ldap.OPT_PROTOCOL_VERSION, _ldap.VERSION3)
-            m = l.simple_bind(self.server.root_dn, self.server.root_pw)
-            result, pmsg, msgid, ctrls = l.result4(m, _ldap.MSG_ONE, self.timeout)
-            self.assertEqual(result, _ldap.RES_BIND)
-            self.assertEqual(type(msgid), type(0))
+            self._bind_conn(l)
         return l
+
+    @contextlib.contextmanager
+    def _open_conn_fd(self, bind=True):
+        sock = socket.create_connection(
+            (self.server.hostname, self.server.port)
+        )
+        try:
+            l = _ldap.initialize_fd(sock.fileno(), self.server.ldap_uri)
+            if bind:
+                self._bind_conn(l)
+            yield sock, l
+        finally:
+            try:
+                sock.close()
+            except OSError:
+                # already closed
+                pass
+
+    def _bind_conn(self, l):
+        # Perform a simple bind
+        l.set_option(_ldap.OPT_PROTOCOL_VERSION, _ldap.VERSION3)
+        m = l.simple_bind(self.server.root_dn, self.server.root_pw)
+        result, pmsg, msgid, ctrls = l.result4(m, _ldap.MSG_ONE, self.timeout)
+        self.assertEqual(result, _ldap.RES_BIND)
+        self.assertEqual(type(msgid), type(0))
+
 
     # Test for the existence of a whole bunch of constants
     # that the C module is supposed to export
@@ -215,14 +234,41 @@ class TestLdapCExtension(SlapdTestCase):
         if 'TLS' in disabled:
             self.assertFalse(_ldap.TLS_AVAIL)
         else:
-            self.assertFalse(_ldap.TLS_AVAIL)
+            self.assertTrue(_ldap.TLS_AVAIL)
         if 'SASL' in disabled:
             self.assertFalse(_ldap.SASL_AVAIL)
         else:
-            self.assertFalse(_ldap.SASL_AVAIL)
+            self.assertTrue(_ldap.SASL_AVAIL)
 
     def test_simple_bind(self):
         l = self._open_conn()
+
+    def test_simple_bind_fileno(self):
+        with self._open_conn_fd() as (sock, l):
+            self.assertEqual(l.whoami_s(), "dn:" + self.server.root_dn)
+
+    @requires_init_fd()
+    def test_simple_bind_fileno_invalid(self):
+        with open(os.devnull) as f:
+            l = _ldap.initialize_fd(f.fileno(), self.server.ldap_uri)
+            with self.assertRaises(_ldap.SERVER_DOWN):
+                self._bind_conn(l)
+
+    @requires_init_fd()
+    def test_simple_bind_fileno_closed(self):
+        with self._open_conn_fd() as (sock, l):
+            self.assertEqual(l.whoami_s(), "dn:" + self.server.root_dn)
+            sock.close()
+            with self.assertRaises(_ldap.SERVER_DOWN):
+                l.whoami_s()
+
+    @requires_init_fd()
+    def test_simple_bind_fileno_rebind(self):
+        with self._open_conn_fd() as (sock, l):
+            self.assertEqual(l.whoami_s(), "dn:" + self.server.root_dn)
+            l.unbind_ext()
+            with self.assertRaises(_ldap.LDAPError):
+                self._bind_conn(l)
 
     def test_simple_anonymous_bind(self):
         l = self._open_conn(bind=False)
@@ -241,7 +287,7 @@ class TestLdapCExtension(SlapdTestCase):
             '',
             _ldap.SCOPE_BASE,
             '(objectClass=*)',
-            [str('objectClass'), str('namingContexts')],
+            ['objectClass', 'namingContexts'],
         )
         self.assertEqual(type(m), type(0))
         result, pmsg, msgid, ctrls = l.result4(m, _ldap.MSG_ALL, self.timeout)
@@ -381,30 +427,36 @@ class TestLdapCExtension(SlapdTestCase):
         self.assertEqual(type(m), type(0))
         result, pmsg, msgid, ctrls = l.result4(m, _ldap.MSG_ALL, self.timeout)
         self.assertEqual(result, _ldap.RES_ADD)
+
         # try a false compare
         m = l.compare_ext(dn, "userPassword", "bad_string")
-        try:
+        with self.assertRaises(_ldap.COMPARE_FALSE) as e:
             r = l.result4(m, _ldap.MSG_ALL, self.timeout)
-        except _ldap.COMPARE_FALSE:
-            pass
-        else:
-            self.fail("expected COMPARE_FALSE, got %r" % r)
+
+        self.assertEqual(e.exception.args[0]['msgid'], m)
+        self.assertEqual(e.exception.args[0]['msgtype'], _ldap.RES_COMPARE)
+        self.assertEqual(e.exception.args[0]['result'], 5)
+        self.assertFalse(e.exception.args[0]['ctrls'])
+
         # try a true compare
         m = l.compare_ext(dn, "userPassword", "the_password")
-        try:
+        with self.assertRaises(_ldap.COMPARE_TRUE) as e:
             r = l.result4(m, _ldap.MSG_ALL, self.timeout)
-        except _ldap.COMPARE_TRUE:
-            pass
-        else:
-            self.fail("expected COMPARE_TRUE, got %r" % r)
+
+        self.assertEqual(e.exception.args[0]['msgid'], m)
+        self.assertEqual(e.exception.args[0]['msgtype'], _ldap.RES_COMPARE)
+        self.assertEqual(e.exception.args[0]['result'], 6)
+        self.assertFalse(e.exception.args[0]['ctrls'])
+
         # try a compare on bad attribute
         m = l.compare_ext(dn, "badAttribute", "ignoreme")
-        try:
+        with self.assertRaises(_ldap.error) as e:
             r = l.result4(m, _ldap.MSG_ALL, self.timeout)
-        except _ldap.error:
-            pass
-        else:
-            self.fail("expected LDAPError, got %r" % r)
+
+        self.assertEqual(e.exception.args[0]['msgid'], m)
+        self.assertEqual(e.exception.args[0]['msgtype'], _ldap.RES_COMPARE)
+        self.assertEqual(e.exception.args[0]['result'], 17)
+        self.assertFalse(e.exception.args[0]['ctrls'])
 
     def test_delete_no_such_object(self):
         """
@@ -879,6 +931,29 @@ class TestLdapCExtension(SlapdTestCase):
         # libldap has tls_g.c, tls_m.c, and tls_o.c with ldap_int_tls_impl
         package = _ldap.get_option(_ldap.OPT_X_TLS_PACKAGE)
         self.assertIn(package, {"GnuTLS", "MozNSS", "OpenSSL"})
+
+    @unittest.skipUnless(
+        hasattr(_ldap, "OPT_X_TLS_REQUIRE_SAN"),
+        reason="Test requires OPT_X_TLS_REQUIRE_SAN"
+    )
+    def test_require_san(self):
+        l = self._open_conn(bind=False)
+        value = l.get_option(_ldap.OPT_X_TLS_REQUIRE_SAN)
+        self.assertIn(
+            value,
+            {
+                _ldap.OPT_X_TLS_NEVER,
+                _ldap.OPT_X_TLS_ALLOW,
+                _ldap.OPT_X_TLS_TRY,
+                _ldap.OPT_X_TLS_DEMAND,
+                _ldap.OPT_X_TLS_HARD,
+            }
+        )
+        l.set_option(_ldap.OPT_X_TLS_REQUIRE_SAN, _ldap.OPT_X_TLS_TRY)
+        self.assertEqual(
+            l.get_option(_ldap.OPT_X_TLS_REQUIRE_SAN),
+            _ldap.OPT_X_TLS_TRY
+        )
 
 
 if __name__ == '__main__':

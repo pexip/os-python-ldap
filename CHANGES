@@ -1,3 +1,159 @@
+Released 3.4.3 2022-09-15
+
+This is a minor release to bring back the removed OPT_X_TLS option.
+Please note, it's still a deprecated option and it will be removed in 3.5.0.
+
+The following deprecated option has been brought back:
+- ``OPT_X_TLS``
+
+Fixes:
+* Sphinx documentation is now successfully built
+* pypy3 tests stability was improved
+* setup.py deprecation warning is now resolved
+
+
+----------------------------------------------------------------
+Released 3.4.2 2022-07-06
+
+This is a minor release to provide out-of-the-box compatibility with the merge
+of libldap and libldap_r that happened with OpenLDAP's 2.5 release.
+
+The following undocumented functions are deprecated and scheduled for removal:
+- ``ldap.cidict.strlist_intersection``
+- ``ldap.cidict.strlist_minus``
+- ``ldap.cidict.strlist_union``
+
+The following deprecated option has been removed:
+- ``OPT_X_TLS``
+
+Doc/
+* SASL option usage has been clarified
+
+Lib/
+* ppolicy control definition has been updated to match Behera draft 11
+
+Modules/
+* By default, compile against libldap, checking whether it provides a
+  threadsafe implementation at runtime
+* When decoding controls, the module can now distinguish between no value
+  (now exposed as ``None``) and an empty value (exposed as ``b''``)
+* Several new OpenLDAP options are now supported:
+  * ``OPT_SOCKET_BIND_ADDRESSES``
+  * ``OPT_TCP_USER_TIMEOUT``
+  * ``OPT_X_SASL_MAXBUFSIZE``
+  * ``OPT_X_SASL_SECPROPS``
+  * ``OPT_X_TLS_ECNAME``
+  * ``OPT_X_TLS_PEERCERT``
+  * ``OPT_X_TLS_PROTOCOL``-related options and constants
+
+Fixes:
+* Encoding/decoding of boolean controls has been corrected
+* ldap.schema.models.Entry is now usable
+* ``method`` keyword to ReconnectLDAPObject.bind_s is now usable
+
+
+----------------------------------------------------------------
+Released 3.4.0 2021-11-26
+
+This release requires Python 3.6 or above,
+and is tested with Python 3.6 to 3.10.
+Python 2 is no longer supported.
+
+New code in the python-ldap project is available under the MIT licence
+(available in ``LICENCE.MIT`` in the source). Several contributors have agreed
+to apply this licence their previous contributions as well.
+See the ``README`` for details.
+
+The following undocumented functions are deprecated and scheduled for removal:
+- ``ldap.cidict.strlist_intersection``
+- ``ldap.cidict.strlist_minus``
+- ``ldap.cidict.strlist_union``
+
+Security fixes:
+* Fix inefficient regular expression which allows denial-of-service attacks
+  when parsing specially-crafted LDAP schema.
+  (GHSL-2021-117)
+
+Changes:
+* On MacOS, remove option to make LDAP connections from a file descriptor
+  when built with the system libldap (which lacks the underlying function,
+  ``ldap_init_fd``)
+* Attribute values of the post read control are now ``bytes``
+  instead of ISO8859-1 decoded ``str``
+* ``LDAPUrl`` now treats urlscheme as case-insensitive
+* Several OpenLDAP options are now supported:
+  * ``OPT_X_TLS_REQUIRE_SAN``
+  * ``OPT_X_SASL_SSF_EXTERNAL``
+  * ``OPT_X_TLS_PEERCERT``
+
+Fixes:
+* The ``copy()`` method of ``cidict`` was added back. It was unintentionally
+  removed in 3.3.0
+* Fixed getting/setting ``SASL`` options on big endian platforms
+* Unknown LDAP result code are now converted to ``LDAPexception``,
+  rather than raising a ``SystemError``.
+
+slapdtest:
+* Show stderr of slapd -Ttest
+* ``SlapdObject`` uses directory-based configuration of ``slapd``
+* ``SlapdObject`` startup is now faster
+
+Infrastructure:
+* CI now runs on GitHub Actions rather than Travis CI.
+
+
+----------------------------------------------------------------
+Released 3.3.0 2020-06-18
+
+Highlights:
+* ``LDAPError`` now contains additional fields, such as ctrls, result, msgid
+* ``passwd_s`` can now extract the newly generated password
+* LDAP connections can now be made from a file descriptor
+
+This release is tested on Python 3.8, and the beta of Python 3.9.
+
+The following undocumented functions are deprecated and scheduled for removal:
+- ``ldap.cidict.strlist_intersection``
+- ``ldap.cidict.strlist_minus``
+- ``ldap.cidict.strlist_union``
+
+Modules/
+* Ensure ReconnectLDAPObject is not left in an inconsistent state after
+  a reconnection timeout
+* Syncrepl now correctly parses SyncInfoMessage when the message is a syncIdSet
+* Release GIL around global get/set option call
+* Do not leak serverctrls in result functions
+* Don't overallocate memory in attrs_from_List()
+* Fix thread support check for Python 3
+* With OpenLDAP 2.4.48, use the new header openldap.h
+
+Lib/
+* Fix some edge cases regarding quoting in the schema tokenizer
+* Fix escaping a single space in ldap.escape_dn_chars
+* Fix string formatting in ldap.compare_ext_s
+* Prefer iterating dict instead of calling dict.keys()
+
+Doc/
+* Clarify the relationship between initialize() and LDAPObject()
+* Improve documentation of TLS options
+* Update FAQ to include Samba AD-DC error message
+  "Operation unavailable without authentication"
+* Fix several incorrect examples and demos
+  (but note that these are not yet tested)
+* Update Debian installation instructions for Debian Buster
+* Typo fixes in docs and docstrings
+
+Test/
+* Test and document error cases in ldap.compare_s
+* Test if reconnection is done after connection loss
+* Make test certificates valid for the far future
+* Use slapd -Tt instead of slaptest
+
+Infrastructure:
+* Mark the LICENCE file as a license for setuptools
+* Use "unittest discover" rather than "setup.py test" to run tests
+
+
 ----------------------------------------------------------------
 Released 3.2.0 2019-03-13
 

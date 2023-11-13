@@ -1,12 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 slapdtest - module for spawning test instances of OpenLDAP's slapd server
 
 See https://www.python-ldap.org/ for details.
 """
-
-from __future__ import unicode_literals
-
 import os
 import socket
 import sys
@@ -16,43 +12,43 @@ import logging
 import atexit
 from logging.handlers import SysLogHandler
 import unittest
+from shutil import which
+from urllib.parse import quote_plus
 
 # Switch off processing .ldaprc or ldap.conf before importing _ldap
 os.environ['LDAPNOINIT'] = '1'
 
 import ldap
-from ldap.compat import quote_plus, which
 
 HERE = os.path.abspath(os.path.dirname(__file__))
 
-# a template string for generating simple slapd.conf file
-SLAPD_CONF_TEMPLATE = r"""
-serverID %(serverid)s
-moduleload back_%(database)s
-%(include_directives)s
-loglevel %(loglevel)s
-allow bind_v2
+# a template string for generating simple slapd.d file
+SLAPD_CONF_TEMPLATE = r"""dn: cn=config
+objectClass: olcGlobal
+cn: config
+olcServerID: %(serverid)s
+olcLogLevel: %(loglevel)s
+olcAllows: bind_v2
+olcAuthzRegexp: {0}"gidnumber=%(root_gid)s\+uidnumber=%(root_uid)s,cn=peercred,cn=external,cn=auth" "%(rootdn)s"
+olcAuthzRegexp: {1}"C=DE, O=python-ldap, OU=slapd-test, CN=([A-Za-z]+)" "ldap://ou=people,dc=local???($1)"
+olcTLSCACertificateFile: %(cafile)s
+olcTLSCertificateFile: %(servercert)s
+olcTLSCertificateKeyFile: %(serverkey)s
+olcTLSVerifyClient: try
 
-authz-regexp
-  "gidnumber=%(root_gid)s\\+uidnumber=%(root_uid)s,cn=peercred,cn=external,cn=auth"
-  "%(rootdn)s"
+dn: cn=module,cn=config
+objectClass: olcModuleList
+cn: module
+olcModuleLoad: back_%(database)s
 
-database %(database)s
-directory "%(directory)s"
-suffix "%(suffix)s"
-rootdn "%(rootdn)s"
-rootpw "%(rootpw)s"
-
-TLSCACertificateFile "%(cafile)s"
-TLSCertificateFile "%(servercert)s"
-TLSCertificateKeyFile "%(serverkey)s"
-# ignore missing client cert but fail with invalid client cert
-TLSVerifyClient try
-
-authz-regexp
-    "C=DE, O=python-ldap, OU=slapd-test, CN=([A-Za-z]+)"
-    "ldap://ou=people,dc=local???($1)"
-
+dn: olcDatabase=%(database)s,cn=config
+objectClass: olcDatabaseConfig
+objectClass: olcMdbConfig
+olcDatabase: %(database)s
+olcSuffix: %(suffix)s
+olcRootDN: %(rootdn)s
+olcRootPW: %(rootpw)s
+olcDbDirectory: %(directory)s
 """
 
 LOCALHOST = '127.0.0.1'
@@ -109,6 +105,14 @@ def requires_ldapi():
     else:
         return identity
 
+def requires_init_fd():
+    if not ldap.INIT_FD_AVAIL:
+        return skip_unless_ci(
+            "test needs ldap.INIT_FD", feature='INIT_FD')
+    else:
+        return identity
+
+
 def _add_sbin(path):
     """Add /sbin and related directories to a command search path"""
     directories = path.split(os.pathsep)
@@ -154,7 +158,7 @@ def combined_logger(
     return new_logger  # end of combined_logger()
 
 
-class SlapdObject(object):
+class SlapdObject:
     """
     Controller class for a slapd instance, OpenLDAP's server.
 
@@ -169,6 +173,9 @@ class SlapdObject(object):
     manager, the slapd server is shut down and the temporary data store is
     removed.
 
+    :param openldap_schema_files: A list of schema names or schema paths to
+        load at startup. By default this only contains `core`.
+
     .. versionchanged:: 3.1
 
         Added context manager functionality
@@ -179,12 +186,12 @@ class SlapdObject(object):
     root_cn = 'Manager'
     root_pw = 'password'
     slapd_loglevel = 'stats stats2'
-    local_host = '127.0.0.1'
+    local_host = LOCALHOST
     testrunsubdirs = (
-        'schema',
+        'slapd.d',
     )
     openldap_schema_files = (
-        'core.schema',
+        'core.ldif',
     )
 
     TMPDIR = os.environ.get('TMP', os.getcwd())
@@ -200,9 +207,6 @@ class SlapdObject(object):
     BIN_PATH = os.environ.get('BIN', os.environ.get('PATH', os.defpath))
     SBIN_PATH = os.environ.get('SBIN', _add_sbin(BIN_PATH))
 
-    # time in secs to wait before trying to access slapd via LDAP (again)
-    _start_sleep = 1.5
-
     # create loggers once, multiple calls mess up refleak tests
     _log = combined_logger('python-ldap-test')
 
@@ -211,10 +215,9 @@ class SlapdObject(object):
         self._port = self._avail_tcp_port()
         self.server_id = self._port % 4096
         self.testrundir = os.path.join(self.TMPDIR, 'python-ldap-test-%d' % self._port)
-        self._schema_prefix = os.path.join(self.testrundir, 'schema')
-        self._slapd_conf = os.path.join(self.testrundir, 'slapd.conf')
+        self._slapd_conf = os.path.join(self.testrundir, 'slapd.d')
         self._db_directory = os.path.join(self.testrundir, "openldap-data")
-        self.ldap_uri = "ldap://%s:%d/" % (LOCALHOST, self._port)
+        self.ldap_uri = "ldap://%s:%d/" % (self.local_host, self._port)
         if HAVE_LDAPI:
             ldapi_path = os.path.join(self.testrundir, 'ldapi')
             self.ldapi_uri = "ldapi://%s" % quote_plus(ldapi_path)
@@ -243,16 +246,24 @@ class SlapdObject(object):
     def root_dn(self):
         return 'cn={self.root_cn},{self.suffix}'.format(self=self)
 
+    @property
+    def hostname(self):
+        return self.local_host
+
+    @property
+    def port(self):
+        return self._port
+
     def _find_commands(self):
         self.PATH_LDAPADD = self._find_command('ldapadd')
         self.PATH_LDAPDELETE = self._find_command('ldapdelete')
         self.PATH_LDAPMODIFY = self._find_command('ldapmodify')
         self.PATH_LDAPWHOAMI = self._find_command('ldapwhoami')
+        self.PATH_SLAPADD = self._find_command('slapadd')
 
         self.PATH_SLAPD = os.environ.get('SLAPD', None)
         if not self.PATH_SLAPD:
             self.PATH_SLAPD = self._find_command('slapd', in_sbin=True)
-        self.PATH_SLAPTEST = self._find_command('slaptest', in_sbin=True)
 
     def _find_command(self, cmd, in_sbin=False):
         if in_sbin:
@@ -279,7 +290,6 @@ class SlapdObject(object):
         os.mkdir(self.testrundir)
         os.mkdir(self._db_directory)
         self._create_sub_dirs(self.testrunsubdirs)
-        self._ln_schema_files(self.openldap_schema_files, self.SCHEMADIR)
 
     def _cleanup_rundir(self):
         """
@@ -324,17 +334,8 @@ class SlapdObject(object):
         for generating specific static configuration files you have to
         override this method
         """
-        include_directives = '\n'.join(
-            'include "{schema_prefix}/{schema_file}"'.format(
-                schema_prefix=self._schema_prefix,
-                schema_file=schema_file,
-            )
-            for schema_file in self.openldap_schema_files
-        )
         config_dict = {
             'serverid': hex(self.server_id),
-            'schema_prefix':self._schema_prefix,
-            'include_directives': include_directives,
             'loglevel': self.slapd_loglevel,
             'database': self.database,
             'directory': self._db_directory,
@@ -358,37 +359,39 @@ class SlapdObject(object):
             self._log.debug('Create directory %s', dir_name)
             os.mkdir(dir_name)
 
-    def _ln_schema_files(self, file_names, source_dir):
-        """
-        write symbolic links to original schema files
-        """
-        for fname in file_names:
-            ln_source = os.path.join(source_dir, fname)
-            ln_target = os.path.join(self._schema_prefix, fname)
-            self._log.debug('Create symlink %s -> %s', ln_source, ln_target)
-            os.symlink(ln_source, ln_target)
-
     def _write_config(self):
-        """Writes the slapd.conf file out, and returns the path to it."""
-        self._log.debug('Writing config to %s', self._slapd_conf)
-        with open(self._slapd_conf, 'w') as config_file:
-            config_file.write(self.gen_config())
-        self._log.info('Wrote config to %s', self._slapd_conf)
+        """Loads the slapd.d configuration."""
+        self._log.debug("importing configuration: %s", self._slapd_conf)
+
+        self.slapadd(self.gen_config(), ["-n0"])
+        ldif_paths = [
+            schema
+            if os.path.exists(schema)
+            else os.path.join(self.SCHEMADIR, schema)
+            for schema in self.openldap_schema_files
+        ]
+        for ldif_path in ldif_paths:
+            self.slapadd(None, ["-n0", "-l", ldif_path])
+
+        self._log.debug("import ok: %s", self._slapd_conf)
 
     def _test_config(self):
         self._log.debug('testing config %s', self._slapd_conf)
         popen_list = [
-            self.PATH_SLAPTEST,
-            "-f", self._slapd_conf,
-            '-u',
+            self.PATH_SLAPD,
+            "-Ttest",
+            "-F", self._slapd_conf,
+            "-u",
+            "-v",
+            "-d", "config"
         ]
-        if self._log.isEnabledFor(logging.DEBUG):
-            popen_list.append('-v')
-            popen_list.extend(['-d', 'config'])
-        else:
-            popen_list.append('-Q')
-        proc = subprocess.Popen(popen_list)
-        if proc.wait() != 0:
+        p = subprocess.run(
+            popen_list,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT
+        )
+        if p.returncode != 0:
+            self._log.error(p.stdout.decode("utf-8"))
             raise RuntimeError("configuration test failed")
         self._log.info("config ok: %s", self._slapd_conf)
 
@@ -401,8 +404,7 @@ class SlapdObject(object):
             urls.append(self.ldapi_uri)
         slapd_args = [
             self.PATH_SLAPD,
-            '-f', self._slapd_conf,
-            '-F', self.testrundir,
+            '-F', self._slapd_conf,
             '-h', ' '.join(urls),
         ]
         if self._log.isEnabledFor(logging.DEBUG):
@@ -412,20 +414,22 @@ class SlapdObject(object):
         self._log.info('starting slapd: %r', ' '.join(slapd_args))
         self._proc = subprocess.Popen(slapd_args)
         # Waits until the LDAP server socket is open, or slapd crashed
+        deadline = time.monotonic() + 10
         # no cover to avoid spurious coverage changes, see
         # https://github.com/python-ldap/python-ldap/issues/127
-        for _ in range(10):  # pragma: no cover
+        while True:  # pragma: no cover
             if self._proc.poll() is not None:
                 self._stopped()
                 raise RuntimeError("slapd exited before opening port")
-            time.sleep(self._start_sleep)
             try:
                 self._log.debug(
                     "slapd connection check to %s", self.default_ldap_uri
                 )
                 self.ldapwhoami()
             except RuntimeError:
-                pass
+                if time.monotonic() >= deadline:
+                    break
+                time.sleep(0.2)
             else:
                 return
         raise RuntimeError("slapd did not start properly")
@@ -457,15 +461,7 @@ class SlapdObject(object):
             self._proc.terminate()
             self.wait()
         self._cleanup_rundir()
-        if hasattr(atexit, 'unregister'):
-            # Python 3
-            atexit.unregister(self.stop)
-        elif hasattr(atexit, '_exithandlers'):
-            # Python 2, can be None during process shutdown
-            try:
-                atexit._exithandlers.remove(self.stop)
-            except ValueError:
-                pass
+        atexit.unregister(self.stop)
 
     def restart(self):
         """
@@ -507,10 +503,14 @@ class SlapdObject(object):
                    stdin_data=None):  # pragma: no cover
         if ldap_uri is None:
             ldap_uri = self.default_ldap_uri
-        args = [
-            ldapcommand,
-            '-H', ldap_uri,
-        ] + self._cli_auth_args() + (extra_args or [])
+
+        if ldapcommand.split("/")[-1].startswith("ldap"):
+            args = [ldapcommand, '-H', ldap_uri] + self._cli_auth_args()
+        else:
+            args = [ldapcommand, '-F', self._slapd_conf]
+
+        args += (extra_args or [])
+
         self._log.debug('Run command: %r', ' '.join(args))
         proc = subprocess.Popen(
             args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -560,6 +560,16 @@ class SlapdObject(object):
             extra_args.append('-r')
         extra_args.append(dn)
         self._cli_popen(self.PATH_LDAPDELETE, extra_args=extra_args)
+
+    def slapadd(self, ldif, extra_args=None):
+        """
+        Runs slapadd on this slapd instance, passing it the ldif content
+        """
+        self._cli_popen(
+            self.PATH_SLAPADD,
+            stdin_data=ldif.encode("utf-8") if ldif else None,
+            extra_args=extra_args,
+        )
 
     def __enter__(self):
         self.start()

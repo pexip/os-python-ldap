@@ -29,16 +29,28 @@ Functions
 
 This module defines the following functions:
 
-.. py:function:: initialize(uri [, trace_level=0 [, trace_file=sys.stdout [, trace_stack_limit=None, [bytes_mode=None, [bytes_strictness=None]]]]]) -> LDAPObject object
+.. py:function:: initialize(uri [, trace_level=0 [, trace_file=sys.stdout [, trace_stack_limit=None, [fileno=None]]]]) -> LDAPObject object
 
    Initializes a new connection object for accessing the given LDAP server,
-   and return an LDAP object (see :ref:`ldap-objects`) used to perform operations
+   and return an :class:`~ldap.ldapobject.LDAPObject` used to perform operations
    on that server.
 
    The *uri* parameter may be a comma- or whitespace-separated list of URIs
    containing only the schema, the host, and the port fields. Note that
    when using multiple URIs you cannot determine to which URI your client
    gets connected.
+
+   If *fileno* parameter is given then the file descriptor will be used to
+   connect to an LDAP server. The *fileno* must either be a socket file
+   descriptor as :class:`int` or a file-like object with a *fileno()* method
+   that returns a socket file descriptor. The socket file descriptor must
+   already be connected. :class:`~ldap.ldapobject.LDAPObject` does not take
+   ownership of the file descriptor. It must be kept open during operations
+   and explicitly closed after the :class:`~ldap.ldapobject.LDAPObject` is
+   unbound. The internal connection type is determined from the URI, ``TCP``
+   for ``ldap://`` / ``ldaps://``, ``IPC`` (``AF_UNIX``) for ``ldapi://``.
+   The parameter is not available on macOS when python-ldap is compiled with system
+   libldap, see :py:const:`INIT_FD_AVAIL`.
 
    Note that internally the OpenLDAP function
    `ldap_initialize(3) <https://www.openldap.org/software/man.cgi?query=ldap_init&sektion=3>`_
@@ -53,21 +65,32 @@ This module defines the following functions:
    *trace_file* specifies a file-like object as target of the debug log and
    *trace_stack_limit* specifies the stack limit of tracebacks in debug log.
 
-   The *bytes_mode* and *bytes_strictness* arguments specify text/bytes
-   behavior under Python 2.
-   See :ref:`text-bytes` for a complete documentation.
-
    Possible values for *trace_level* are
    :py:const:`0` for no logging,
    :py:const:`1` for only logging the method calls with arguments,
    :py:const:`2` for logging the method calls with arguments and the complete results and
    :py:const:`9` for also logging the traceback of method calls.
 
-   Additional keyword arguments are passed to :class:`LDAPObject`.
+   This function is a thin wrapper around instantiating
+   :class:`~ldap.ldapobject.LDAPObject`.
+   Any additional keyword arguments are passed to ``LDAPObject``.
+   It is also fine to instantiate a ``LDAPObject`` (or a subclass) directly.
+
+   The function additionally takes *bytes_mode* and *bytes_strictness* keyword
+   arguments, which are deprecated and ignored. See :ref:`bytes_mode` for
+   details.
 
    .. seealso::
 
       :rfc:`4516` - Lightweight Directory Access Protocol (LDAP): Uniform Resource Locator
+
+   .. versionadded:: 3.3
+
+      The *fileno* argument was added.
+
+   .. deprecated:: 3.4
+
+      *bytes_mode* and *bytes_strictness* arguments are deprecated.
 
 
 .. py:function:: get_option(option) -> int|string
@@ -79,6 +102,12 @@ This module defines the following functions:
 
    This function sets the value of the global option specified by *option* to
    *invalue*.
+
+   .. note::
+
+      Most global settings do not affect existing :py:class:`LDAPObject`
+      connections. Applications should call :py:func:`set_option()` before
+      they establish connections with :py:func:`initialize`.
 
 .. versionchanged:: 3.1
 
@@ -111,6 +140,12 @@ General
 
    Integer where a non-zero value indicates that python-ldap was built with
    support for SSL/TLS (OpenSSL or similar libs).
+
+.. py:data:: INIT_FD_AVAIL
+
+   Integer where a non-zero value indicates that python-ldap supports
+   :py:func:`initialize` from a file descriptor. The feature is generally
+   available except on macOS when python-ldap is compiled with system libldap.
 
 
 .. _ldap-options:
@@ -191,6 +226,9 @@ the following option identifiers are defined as constants:
 SASL options
 ::::::::::::
 
+Unlike most other options, SASL options must be set on an
+:py:class:`LDAPObject` instance.
+
 .. py:data:: OPT_X_SASL_AUTHCID
 
 .. py:data:: OPT_X_SASL_AUTHZID
@@ -199,7 +237,7 @@ SASL options
 
 .. py:data:: OPT_X_SASL_NOCANON
 
-   If set to zero SASL host name canonicalization is disabled.
+   If set to zero, SASL host name canonicalization is disabled.
 
 .. py:data:: OPT_X_SASL_REALM
 
@@ -218,33 +256,237 @@ SASL options
 TLS options
 :::::::::::
 
-.. py:data:: OPT_X_TLS
+.. warning::
 
-.. py:data:: OPT_X_TLS_ALLOW
+   libldap does not materialize all TLS settings immediately. You must use
+   :py:const:`OPT_X_TLS_NEWCTX` with value ``0`` to instruct libldap to
+   apply pending TLS settings and create a new internal TLS context::
+
+      conn = ldap.initialize("ldap://ldap.example")
+      conn.set_option(ldap.OPT_X_TLS_CACERTFILE, '/path/to/ca.pem')
+      conn.set_option(ldap.OPT_X_TLS_NEWCTX, 0)
+      conn.start_tls_s()
+      conn.simple_bind_s(dn, password)
+
+
+.. py:data:: OPT_X_TLS_NEWCTX
+
+   set and apply TLS settings to internal TLS context. Value ``0`` creates
+   a new client-side context.
+
+.. py:data:: OPT_X_TLS_PACKAGE
+
+   Get TLS implementation, known values are
+
+   * ``GnuTLS``
+   * ``MozNSS`` (Mozilla NSS)
+   * ``OpenSSL``
+
 
 .. py:data:: OPT_X_TLS_CACERTDIR
 
+   get/set path to directory with CA certs
+
 .. py:data:: OPT_X_TLS_CACERTFILE
+
+   get/set path to PEM file with CA certs
 
 .. py:data:: OPT_X_TLS_CERTFILE
 
-.. py:data:: OPT_X_TLS_CIPHER_SUITE
-
-.. py:data:: OPT_X_TLS_CTX
-
-.. py:data:: OPT_X_TLS_DEMAND
-
-.. py:data:: OPT_X_TLS_HARD
+   get/set path to file with PEM encoded cert for client cert authentication,
+   requires :py:const:`OPT_X_TLS_KEYFILE`.
 
 .. py:data:: OPT_X_TLS_KEYFILE
 
-.. py:data:: OPT_X_TLS_NEVER
+   get/set path to file with PEM encoded key for client cert authentication,
+   requires :py:const:`OPT_X_TLS_CERTFILE`.
 
-.. py:data:: OPT_X_TLS_RANDOM_FILE
+
+.. py:data:: OPT_X_TLS_CRLCHECK
+
+   get/set certificate revocation list (CRL) check mode. CRL validation
+   requires :py:const:`OPT_X_TLS_CRLFILE`.
+
+   :py:const:`OPT_X_TLS_CRL_NONE`
+      Don't perform CRL checks
+
+   :py:const:`OPT_X_TLS_CRL_PEER`
+      Perform CRL check for peer's end entity cert.
+
+   :py:const:`OPT_X_TLS_CRL_ALL`
+      Perform CRL checks for the whole cert chain
+
+.. py:data:: OPT_X_TLS_CRLFILE
+
+   get/set path to CRL file
+
+.. py:data:: OPT_X_TLS_CRL_ALL
+
+   value for :py:const:`OPT_X_TLS_CRLCHECK`
+
+.. py:data:: OPT_X_TLS_CRL_NONE
+
+   value for :py:const:`OPT_X_TLS_CRLCHECK`
+
+.. py:data:: OPT_X_TLS_CRL_PEER
+
+   value for :py:const:`OPT_X_TLS_CRLCHECK`
+
 
 .. py:data:: OPT_X_TLS_REQUIRE_CERT
 
+   get/set validation strategy for server cert.
+
+   :py:const:`OPT_X_TLS_NEVER`
+      Don't check server cert and host name
+
+   :py:const:`OPT_X_TLS_ALLOW`
+      Used internally by slapd server.
+
+   :py:const:`OPT_X_TLS_DEMAND`
+      Validate peer cert chain and host name
+
+   :py:const:`OPT_X_TLS_HARD`
+      Same as :py:const:`OPT_X_TLS_DEMAND`
+
+.. py:data:: OPT_X_TLS_REQUIRE_SAN
+
+   get/set how OpenLDAP validates subject alternative name extension,
+   available in OpenLDAP 2.4.52 and newer.
+
+   :py:const:`OPT_X_TLS_NEVER`
+      Don't check SAN
+
+   :py:const:`OPT_X_TLS_ALLOW`
+      Check SAN first, always fall back to subject common name (default)
+
+   :py:const:`OPT_X_TLS_TRY`
+      Check SAN first, only fall back to subject common name, when no SAN
+      extension is present (:rfc:`6125` conform validation)
+
+   :py:const:`OPT_X_TLS_DEMAND`
+      Validate peer cert chain and host name
+
+   :py:const:`OPT_X_TLS_HARD`
+      Require SAN, don't fall back to subject common name
+
+   .. versionadded:: 3.4.0
+
+.. py:data:: OPT_X_TLS_ALLOW
+
+   Value for :py:const:`OPT_X_TLS_REQUIRE_CERT`
+   and :py:const:`OPT_X_TLS_REQUIRE_SAN`
+
+.. py:data:: OPT_X_TLS_DEMAND
+
+   Value for :py:const:`OPT_X_TLS_REQUIRE_CERT`
+   and :py:const:`OPT_X_TLS_REQUIRE_SAN`
+
+.. py:data:: OPT_X_TLS_HARD
+
+   Value for :py:const:`OPT_X_TLS_REQUIRE_CERT`
+   and :py:const:`OPT_X_TLS_REQUIRE_SAN`
+
+.. py:data:: OPT_X_TLS_NEVER
+
+   Value for :py:const:`OPT_X_TLS_REQUIRE_CERT`
+   and :py:const:`OPT_X_TLS_REQUIRE_SAN`
+
 .. py:data:: OPT_X_TLS_TRY
+
+   Value for :py:const:`OPT_X_TLS_REQUIRE_CERT`
+
+   .. deprecated:: 3.3.0
+      This value is only used by slapd server internally. It will be removed
+      in the future.
+
+
+.. py:data:: OPT_X_TLS_CIPHER
+
+   get cipher suite name from TLS session
+
+.. py:data:: OPT_X_TLS_CIPHER_SUITE
+
+   get/set allowed cipher suites
+
+.. py:data:: OPT_X_TLS_CTX
+
+   get address of internal memory address of TLS context (**DO NOT USE**)
+
+.. py:data:: OPT_X_TLS_PEERCERT
+
+   Get peer's certificate as binary ASN.1 data structure (DER)
+
+   .. versionadded:: 3.4.1
+
+   .. note::
+      The option leaks memory with OpenLDAP < 2.5.8.
+
+.. py:data:: OPT_X_TLS_PROTOCOL_MIN
+
+   get/set minimum protocol version (wire protocol version as int)
+
+.. py:data:: OPT_X_TLS_PROTOCOL_MAX
+
+   get/set maximum protocol version (wire protocol version as int),
+   available in OpenLDAP 2.5 and newer.
+
+   .. versionadded:: 3.4.1
+
+.. py:data:: OPT_X_TLS_PROTOCOL_SSL3
+
+   Value for :py:const:`OPT_X_TLS_PROTOCOL_MIN` and
+   :py:const:`OPT_X_TLS_PROTOCOL_MAX`, represents SSL 3
+
+   .. versionadded:: 3.4.1
+
+.. py:data:: OPT_X_TLS_PROTOCOL_TLS1_0
+
+   Value for :py:const:`OPT_X_TLS_PROTOCOL_MIN` and
+   :py:const:`OPT_X_TLS_PROTOCOL_MAX`, represents TLS 1.0
+
+   .. versionadded:: 3.4.1
+
+.. py:data:: OPT_X_TLS_PROTOCOL_TLS1_1
+
+   Value for :py:const:`OPT_X_TLS_PROTOCOL_MIN` and
+   :py:const:`OPT_X_TLS_PROTOCOL_MAX`, represents TLS 1.1
+
+   .. versionadded:: 3.4.1
+
+.. py:data:: OPT_X_TLS_PROTOCOL_TLS1_2
+
+   Value for :py:const:`OPT_X_TLS_PROTOCOL_MIN` and
+   :py:const:`OPT_X_TLS_PROTOCOL_MAX`, represents TLS 1.2
+
+   .. versionadded:: 3.4.1
+
+.. py:data:: OPT_X_TLS_PROTOCOL_TLS1_3
+
+   Value for :py:const:`OPT_X_TLS_PROTOCOL_MIN` and
+   :py:const:`OPT_X_TLS_PROTOCOL_MAX`, represents TLS 1.3
+
+   .. versionadded:: 3.4.1
+
+.. py:data:: OPT_X_TLS_VERSION
+
+   Get negotiated TLS protocol version as string
+
+.. py:data:: OPT_X_TLS_RANDOM_FILE
+
+   get/set path to /dev/urandom (**DO NOT USE**)
+
+.. py:data:: OPT_X_TLS
+
+   .. deprecated:: 3.3.0
+      The option is deprecated in OpenLDAP and should no longer be used. It
+      will be removed in the future.
+
+.. note::
+
+   OpenLDAP supports several TLS/SSL libraries. OpenSSL is the most common
+   backend. Some options may not be available when libldap uses NSS, GnuTLS,
+   or Apple's Secure Transport backend.
 
 .. _ldap-keepalive-options:
 
@@ -308,16 +550,27 @@ The module defines the following exceptions:
    are instead turned into exceptions, raised as soon an the error condition
    is detected.
 
-   The exceptions are accompanied by a dictionary possibly
-   containing an string value for the key :py:const:`desc`
-   (giving an English description of the error class)
-   and/or a string value for the key :py:const:`info`
-   (giving a string containing more information that the server may have sent).
+   The exceptions are accompanied by a dictionary with additional information.
+   All fields are optional and more fields may be added in the future.
+   Currently, ``python-ldap`` may set the following fields:
 
-   A third possible field of this dictionary is :py:const:`matched` and
-   is set to a truncated form of the name provided or alias dereferenced
-   for the lowest entry (object or alias) that was matched.
-
+   * ``'result'``: a numeric code of the error class.
+   * ``'desc'``: string giving a description of the error class, as provided
+     by calling OpenLDAP's ``ldap_err2string`` on the ``result``.
+   * ``'info'``: string containing more information that the server may
+     have sent. The value is server-specific: for example, the OpenLDAP server
+     may send different info messages than Active Directory or 389-DS.
+   * ``'matched'``: truncated form of the name provided or alias.
+     dereferenced for the lowest entry (object or alias) that was matched.
+   * ``'msgid'``: ID of the matching asynchronous request.
+     This can be used in asynchronous code where :py:meth:`result()` raises the
+     result of an operation as an exception. For example, this is the case for
+     :py:meth:`~LDAPObject.compare()`, always raises the boolean result as an
+     exception (:py:exc:`COMPARE_TRUE` or :py:exc:`COMPARE_FALSE`).
+   * ``'ctrls'``: list of :py:class:`ldap.controls.LDAPControl` instances
+     attached to the error.
+   * ``'errno'``: the C ``errno``, usually set by system calls or ``libc``
+     rather than the LDAP libraries.
 
 .. py:exception:: ADMINLIMIT_EXCEEDED
 
@@ -351,14 +604,14 @@ The module defines the following exceptions:
 .. py:exception:: COMPARE_FALSE
 
    A compare operation returned false.
-   (This exception should never be seen because :py:meth:`compare()` returns
-   a boolean result.)
+   (This exception should only be seen asynchronous operations, because
+   :py:meth:`~LDAPObject.compare_s()` returns a boolean result.)
 
 .. py:exception:: COMPARE_TRUE
 
    A compare operation returned true.
-   (This exception should never be seen because :py:meth:`compare()` returns
-   a boolean result.)
+   (This exception should only be seen asynchronous operations, because
+   :py:meth:`~LDAPObject.compare_s()` returns a boolean result.)
 
 .. py:exception:: CONFIDENTIALITY_REQUIRED
 
@@ -454,10 +707,6 @@ The module defines the following exceptions:
 .. py:exception:: NOT_SUPPORTED
 
 .. py:exception:: NO_MEMORY
-
-.. py:exception:: NO_OBJECT_CLASS_MODS
-
-   Object class modifications are not allowed.
 
 .. py:exception:: NO_RESULTS_RETURNED
 
@@ -562,31 +811,42 @@ The above exceptions are raised when a result code from an underlying API
 call does not indicate success.
 
 
+.. _ldap-warnings:
+
 Warnings
 ========
 
 .. py:class:: LDAPBytesWarning
 
-    Raised when bytes/text mismatch in non-strict bytes mode.
+    This warning is deprecated. python-ldap no longer raises it.
 
-    See :ref:`bytes_mode` for details.
+    It used to be raised under Python 2 when bytes/text mismatch in non-strict
+    bytes mode. See :ref:`bytes_mode` for details.
 
     .. versionadded:: 3.0.0
 
+    .. versionchanged:: 3.4.0
+
+      Deprecated.
 
 .. _ldap-objects:
 
 LDAPObject classes
 ==================
 
-.. py:class:: LDAPObject
+.. py:class:: ldap.ldapobject.LDAPObject
 
    Instances of :py:class:`LDAPObject` are returned by :py:func:`initialize()`.
    The connection is automatically unbound
    and closed when the LDAP object is deleted.
 
-   Internally :py:class:`LDAPObject` is set to
-   :py:class:`~ldap.ldapobject.SimpleLDAPObject` by default.
+   :py:class:`LDAPObject` is an alias of
+   :py:class:`~ldap.ldapobject.SimpleLDAPObject`, the default connection class.
+   If you wish to use a different class, instantiate it directly instead of
+   calling :func:`initialize()`.
+
+   (It is also possible, but not recommended, to change the default by setting
+   ``ldap.ldapobject.LDAPObject`` to a different class.)
 
 .. autoclass:: ldap.ldapobject.SimpleLDAPObject
 
@@ -699,7 +959,9 @@ and wait for and return with the server's result, or with
    and the value *value*. The synchronous forms returns ``True`` or ``False``.
    The asynchronous forms returns the message ID of the initiated request, and
    the result of the asynchronous compare can be obtained using
-   :py:meth:`result()`.
+   :py:meth:`result()`. The operation can fail with an exception, e.g.
+   :py:exc:`ldap.NO_SUCH_OBJECT` when *dn* does not exist or
+   :py:exc:`ldap.UNDEFINED_TYPE` for an invalid attribute.
 
    Note that the asynchronous technique yields the answer
    by raising the exception objects :py:exc:`ldap.COMPARE_TRUE` or
@@ -708,11 +970,6 @@ and wait for and return with the server's result, or with
    *serverctrls* and *clientctrls* like described in section :ref:`ldap-controls`.
 
    The *dn* and *attr* arguments are text strings; see :ref:`bytes_mode`.
-
-   .. note::
-
-      A design fault in the LDAP API prevents *value*
-      from containing *NULL* characters.
 
 
 .. py:method:: LDAPObject.delete(dn) -> int
@@ -808,7 +1065,7 @@ and wait for and return with the server's result, or with
 
 .. py:method:: LDAPObject.passwd(user, oldpw, newpw [, serverctrls=None [, clientctrls=None]]) -> int
 
-.. py:method:: LDAPObject.passwd_s(user, oldpw, newpw [, serverctrls=None [, clientctrls=None]]) -> None
+.. py:method:: LDAPObject.passwd_s(user, oldpw, newpw [, serverctrls=None [, clientctrls=None] [, extract_newpw=False]]]) -> (respoid, respvalue)
 
    Perform a ``LDAP Password Modify Extended Operation`` operation
    on the entry specified by *user*.
@@ -819,6 +1076,13 @@ and wait for and return with the server's result, or with
    of the specified *user* which is sometimes used when a user changes
    his own password.
 
+   *respoid* is always :py:const:`None`. *respvalue* is also
+   :py:const:`None` unless *newpw* was :py:const:`None`. This requests that
+   the server generate a new random password. If *extract_newpw* is
+   :py:const:`True`, this password is a bytes object available through
+   ``respvalue.genPasswd``, otherwise *respvalue* is the raw ASN.1 response
+   (this is deprecated and only for backwards compatibility).
+
    *serverctrls* and *clientctrls* like described in section :ref:`ldap-controls`.
 
    The asynchronous version returns the initiated message id.
@@ -828,6 +1092,7 @@ and wait for and return with the server's result, or with
    .. seealso::
 
       :rfc:`3062` - LDAP Password Modify Extended Operation
+      :py:mod:`ldap.extop.passwd`
 
 
 

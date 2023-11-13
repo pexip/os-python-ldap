@@ -1,0 +1,9 @@
+Document: python-ldap-doc
+Title: Python LDAP documentation
+Author: Python-ldap project
+Section: Programming/Python
+
+Format: HTML
+Index: /usr/share/doc/python-ldap-doc/html/index.html
+Files: /usr/share/doc/python-ldap-doc/html/*.html
+       /usr/share/doc/python-ldap-doc/html/reference/*.html
