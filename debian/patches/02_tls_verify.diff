@@ -1,6 +1,8 @@
---- a/Lib/ldap/ldapobject.py
-+++ b/Lib/ldap/ldapobject.py
-@@ -918,6 +918,9 @@
+Index: os-python-ldap/Lib/ldap/ldapobject.py
+===================================================================
+--- os-python-ldap.orig/Lib/ldap/ldapobject.py
++++ os-python-ldap/Lib/ldap/ldapobject.py
+@@ -697,6 +697,9 @@ class SimpleLDAPObject:
        invalue = RequestControlTuples(invalue)
      return self._ldap_call(self._l.set_option,option,invalue)
  
@@ -10,8 +12,10 @@
    def search_subschemasubentry_s(self,dn=None):
      """
      Returns the distinguished name of the sub schema sub entry
---- a/Modules/LDAPObject.c
-+++ b/Modules/LDAPObject.c
+Index: os-python-ldap/Modules/LDAPObject.c
+===================================================================
+--- os-python-ldap.orig/Modules/LDAPObject.c
++++ os-python-ldap/Modules/LDAPObject.c
 @@ -16,7 +16,14 @@
  #include <sasl/sasl.h>
  #endif
@@ -27,7 +31,7 @@
  
  /* constructor */
  
-@@ -30,6 +37,33 @@
+@@ -30,6 +37,33 @@ newLDAPObject(LDAP *l)
      self->ldap = l;
      self->_save = NULL;
      self->valid = 1;
@@ -61,7 +65,7 @@
      return self;
  }
  
-@@ -38,6 +72,8 @@
+@@ -38,6 +72,8 @@ newLDAPObject(LDAP *l)
  static void
  dealloc(LDAPObject *self)
  {
@@ -70,7 +74,7 @@
      if (self->ldap) {
          if (self->valid) {
              LDAP_BEGIN_ALLOW_THREADS(self);
-@@ -1375,6 +1411,104 @@
+@@ -1360,6 +1396,104 @@ l_ldap_start_tls_s(LDAPObject *self, PyO
      return Py_None;
  }
  
@@ -175,7 +179,7 @@
  #endif
  
  /* ldap_set_option */
-@@ -1536,6 +1670,7 @@
+@@ -1525,6 +1659,7 @@ static PyMethodDef methods[] = {
      {"search_ext", (PyCFunction)l_ldap_search_ext, METH_VARARGS},
  #ifdef HAVE_TLS
      {"start_tls_s", (PyCFunction)l_ldap_start_tls_s, METH_VARARGS},
@@ -183,11 +187,13 @@
  #endif
      {"whoami_s", (PyCFunction)l_ldap_whoami_s, METH_VARARGS},
      {"passwd", (PyCFunction)l_ldap_passwd, METH_VARARGS},
---- a/Modules/LDAPObject.h
-+++ b/Modules/LDAPObject.h
-@@ -21,6 +21,9 @@
+Index: os-python-ldap/Modules/LDAPObject.h
+===================================================================
+--- os-python-ldap.orig/Modules/LDAPObject.h
++++ os-python-ldap/Modules/LDAPObject.h
+@@ -9,6 +9,9 @@ typedef struct {
      PyObject_HEAD LDAP *ldap;
-     _threadstate _save;         /* for thread saving on referrals */
+     PyThreadState *_save;         /* for thread saving on referrals */
      int valid;
 +    int tls_is_openssl;
 +    PyObject *tls_cb;
@@ -195,13 +201,14 @@
  } LDAPObject;
  
  extern PyTypeObject LDAP_Type;
---- a/setup.cfg
-+++ b/setup.cfg
-@@ -2,7 +2,7 @@
- defines = HAVE_SASL HAVE_TLS HAVE_LIBLDAP_R
+Index: os-python-ldap/setup.cfg
+===================================================================
+--- os-python-ldap.orig/setup.cfg
++++ os-python-ldap/setup.cfg
+@@ -5,6 +5,7 @@ license_file = LICENCE
+ defines = HAVE_SASL HAVE_TLS
  extra_compile_args = 
  extra_objects = 
--libs = ldap_r lber
 +libs = ldap_r lber ssl crypto
  
  [install]
