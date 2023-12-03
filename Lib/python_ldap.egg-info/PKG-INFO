@@ -1,13 +1,12 @@
 Metadata-Version: 2.1
 Name: python-ldap
-Version: 3.4.3
+Version: 3.4.4
 Summary: Python modules for implementing LDAP clients
 Home-page: https://www.python-ldap.org/
+Download-URL: https://pypi.org/project/python-ldap/
 Author: python-ldap project
 Author-email: python-ldap@python.org
 License: Python style
-Download-URL: https://pypi.org/project/python-ldap/
-Platform: UNKNOWN
 Classifier: Development Status :: 5 - Production/Stable
 Classifier: Intended Audience :: Developers
 Classifier: Intended Audience :: System Administrators
@@ -22,6 +21,9 @@ Classifier: Programming Language :: Python :: 3.6
 Classifier: Programming Language :: Python :: 3.7
 Classifier: Programming Language :: Python :: 3.8
 Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
 Classifier: Topic :: Database
 Classifier: Topic :: Internet
 Classifier: Topic :: Software Development :: Libraries :: Python Modules
@@ -29,6 +31,8 @@ Classifier: Topic :: System :: Systems Administration :: Authentication/Director
 Classifier: License :: OSI Approved :: Python Software Foundation License
 Requires-Python: >=3.6
 License-File: LICENCE
+Requires-Dist: pyasn1>=0.3.7
+Requires-Dist: pyasn1_modules>=0.1.5
 
 python-ldap:
   python-ldap provides an object-oriented API to access LDAP directory servers
@@ -37,4 +41,3 @@ python-ldap:
   (e.g. processing LDIF, LDAPURLs, LDAPv3 schema, LDAPv3 extended operations
   and controls, etc.).
   
-
