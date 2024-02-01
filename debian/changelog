@@ -1,3 +1,9 @@
+python-ldap (3.4.3-2+b2+pexip24u2) pexip-bookworm; urgency=medium
+
+  * New versioning scheme
+
+ -- Mark Hymers <mark.hymers@pexip.com>  Thu, 01 Feb 2024 16:23:08 +0000
+
 python-ldap (3.4.3-2+b2pexip1) pexip-bookworm; urgency=medium
 
   * Bump version to supersede Debian point release binNMU.
