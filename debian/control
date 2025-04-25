@@ -23,7 +23,7 @@ Homepage: https://www.python-ldap.org
 Vcs-Browser: https://salsa.debian.org/python-team/packages/python-ldap
 Vcs-Git: https://salsa.debian.org/python-team/packages/python-ldap.git
 Rules-Requires-Root: no
-XS-Pexip-Upstream: http://deb.debian.org/debian/ bookworm
+XS-Pexip-Upstream: http://deb.debian.org/debian/ trixie
 
 Package: python-ldap-doc
 Section: doc
