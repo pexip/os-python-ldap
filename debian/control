@@ -6,7 +6,7 @@ XSBC-Pexip-Original-Maintainer: Debian Python Team <team+python@tracker.debian.o
 XSBC-Pexip-Original-Uploaders:
  Willem van den Akker <wvdakker@wilsoft.nl>,
  Michael Fladischer <fladi@debian.org>,
-Standards-Version: 4.6.1.0
+Standards-Version: 4.6.2
 Build-Depends:
  debhelper-compat (= 13),
  dh-python,
