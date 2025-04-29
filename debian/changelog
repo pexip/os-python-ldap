@@ -1,3 +1,9 @@
+python-ldap (3.4.4-1+pexip25u1) pexip-trixie; urgency=medium
+
+  * Initial trixie build
+
+ -- Mark Hymers <mark.hymers@pexip.com>  Tue, 29 Apr 2025 22:54:19 +0100
+
 python-ldap (3.4.4-1) unstable; urgency=low
 
   * New upstream version 3.4.4
