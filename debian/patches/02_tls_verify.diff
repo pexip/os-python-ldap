@@ -142,7 +142,7 @@ Index: os-python-ldap/Modules/LDAPObject.c
 +    argv = Py_BuildValue("(isii)", preverify_ok, pem != NULL ? pem : "", errnum, errdepth);
 +    free(pem);
 +
-+    ret = PyEval_CallObject(self->tls_cb, argv);
++    ret = PyObject_CallObject(self->tls_cb, argv);
 +    Py_DECREF(argv);
 +    if (ret != NULL) {
 +        if (PyObject_IsTrue(ret)) {
