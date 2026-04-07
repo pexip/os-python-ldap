@@ -1,3 +1,5 @@
+Expose TLS verification to Python
+
 Index: os-python-ldap/Lib/ldap/ldapobject.py
 ===================================================================
 --- os-python-ldap.orig/Lib/ldap/ldapobject.py

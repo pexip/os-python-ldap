@@ -1,3 +1,5 @@
+Allow setting string options to None
+
 Index: os-python-ldap/Modules/options.c
 ===================================================================
 --- os-python-ldap.orig/Modules/options.c
